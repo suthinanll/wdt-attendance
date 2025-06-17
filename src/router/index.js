@@ -4,12 +4,20 @@ import HomeView from '../views/HomeView.vue'
 import CreateAttendance from '@/views/CreateAttendance.vue'
 import CheckClass from '../views/CheckClass.vue' // 👈 เพิ่มการ import ไฟล์
 import AtdDatalist from '@/views/AtdDatalist.vue' 
+import StudentList from '@/views/StudentList.vue'
+import PointStudent from '@/views/PointStudent.vue'
+import ScoreboardPage from '@/views/ScoreboardPage.vue'
 
 const routes = [
   { path: '/', redirect: '/login' },
   { path: '/login', component: LoginPage },
   { path: '/admin', component: HomeView },
   { path: '/attendance', component: CreateAttendance },
+  { path: '/students', component: StudentList },
+  { path: '/addpoint', component: PointStudent },
+  { path: '/scoreboard', component: ScoreboardPage },
+
+
   {
     path: '/attendance/checkclass/:sessionId',
     name: 'checkclass',

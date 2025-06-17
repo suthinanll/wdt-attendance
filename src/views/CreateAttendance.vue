@@ -68,29 +68,7 @@ function closeSidebar() {
   sidebarVisible.value = false
 }
 
-async function fillLateAttendanceRecords() {
-  if (!sessionId.value) return
-  const studentsSnapshot = await getDocs(collection(db, 'students'))
-  const allStudentIds = studentsSnapshot.docs.map(doc => doc.id)
-  const recordsSnapshot = await getDocs(
-    query(collection(db, 'attendance_records'), where('sessionId', '==', sessionId.value))
-  )
-  const checkedIds = recordsSnapshot.docs.map(doc => doc.data().studentId)
-  const notChecked = allStudentIds.filter(id => !checkedIds.includes(id))
-  for (const sid of notChecked) {
-    const stuDoc = studentsSnapshot.docs.find(d => d.id === sid)
-    const name = stuDoc ? stuDoc.data().name : ''
-    await addDoc(collection(db, 'attendance_records'), {
-      sessionId: sessionId.value,
-      sessionName: sessionName.value,
-      studentId: sid,
-      name: name,
-      timestamp: null,
-      score: 0.5,
-      status: 'late'
-    })
-  }
-}
+
 
 async function checkActiveSession() {
   try {
@@ -140,8 +118,8 @@ async function checkActiveSession() {
         }
       }
     }
-  // eslint-disable-next-line no-empty
-  } catch (error) {}
+    // eslint-disable-next-line no-empty
+  } catch (error) { }
 }
 
 function startCountdown() {
@@ -156,7 +134,6 @@ function startCountdown() {
         await updateDoc(doc(db, 'attendance_sessions', sessionId.value), {
           isActive: false
         })
-        await fillLateAttendanceRecords();
       }
       await Swal.fire({
         title: 'หมดเวลาการเช็คชื่อ',
@@ -186,7 +163,6 @@ async function stopSession() {
       await updateDoc(doc(db, 'attendance_sessions', sessionId.value), {
         isActive: false
       })
-      await fillLateAttendanceRecords();
     }
     lateSession.value = false
     await Swal.fire({
@@ -309,41 +285,7 @@ async function startSession() {
   }
 }
 
-// ฟังก์ชัน "รอบมาสาย"
-async function startLateSession() {
-  if (sessionName.value.trim() === '') {
-    Swal.fire('กรุณากรอกชื่อเซสชันก่อนเริ่ม', '', 'warning')
-    return
-  }
-  if (durationMinutes.value <= 0) {
-    Swal.fire('กรุณากรอกเวลาที่ถูกต้อง', '', 'warning')
-    return
-  }
-  try {
-    lateSession.value = true
-    const docRef = await addDoc(collection(db, 'attendance_sessions'), {
-      name: sessionName.value.trim() + ' (รอบคนมาสาย)',
-      createdAt: serverTimestamp(),
-      createdBy: userEmail.value,
-      isActive: true,
-      duration: durationMinutes.value * 60,
-      isLateRound: true
-    })
-    sessionId.value = docRef.id
-    sessionStarted.value = true
-    countdown.value = durationMinutes.value * 60
-    startCountdown()
-    Swal.fire({
-      title: 'เริ่มเช็คชื่อรอบคนมาสายแล้ว',
-      text: `เช็คชื่อ (คนมาสาย) "${sessionName.value}"`,
-      icon: 'success',
-      timer: 2000,
-      showConfirmButton: false
-    })
-  } catch (error) {
-    Swal.fire('เกิดข้อผิดพลาดในการสร้างเซสชัน', error.message, 'error')
-  }
-}
+
 </script>
 
 <template>
@@ -382,7 +324,7 @@ async function startLateSession() {
         <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
           {{ sessionStarted
             ? lateSession
-              ? 'เซสชันปัจจุบัน (รอบคนมาสาย)' 
+              ? 'เซสชันปัจจุบัน (รอบคนมาสาย)'
               : 'เซสชันปัจจุบัน'
             : 'สร้างการเช็คชื่อใหม่' }}
         </h3>
@@ -401,23 +343,21 @@ async function startLateSession() {
           </div>
         </div>
 
+
         <div v-if="!sessionStarted">
           <button @click="startSession"
             class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-8 py-3 rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1 font-semibold">
             เริ่มเช็คชื่อ
           </button>
-          <button @click="startLateSession"
-            class="ml-4 bg-gradient-to-r from-orange-500 to-yellow-500 text-white px-8 py-3 rounded-xl hover:from-orange-600 hover:to-yellow-600 transition shadow-lg hover:shadow-xl font-semibold">
-            สร้างการเช็คชื่อสำหรับคนมาสาย (0.5 คะแนน)
-          </button>
+         
         </div>
-
         <!-- Session Info when active -->
         <div v-if="sessionStarted"
           class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-6">
           <div class="flex items-center justify-between mb-4">
             <div>
-              <h4 class="text-xl font-bold text-gray-800">"{{ sessionName }}{{ lateSession ? ' (รอบคนมาสาย)' : '' }}"</h4>
+              <h4 class="text-xl font-bold text-gray-800">"{{ sessionName }}{{ lateSession ? ' (รอบคนมาสาย)' : '' }}"
+              </h4>
               <p class="text-gray-600">Session ID: {{ sessionId }}</p>
               <p v-if="lateSession" class="text-orange-600 font-bold text-xs mt-1">
                 รอบคนมาสาย: ผู้เช็คชื่อจะได้ 0.5 คะแนน
