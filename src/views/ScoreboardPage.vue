@@ -3,6 +3,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import Swal from 'sweetalert2'
+import * as XLSX from 'xlsx' // เพิ่มไลบรารี xlsx
 
 import { auth } from '../firebase.js'
 import { onAuthStateChanged } from 'firebase/auth'
@@ -25,10 +26,12 @@ const activeTab = ref('scores') // สำหรับกรณีที่มี
 
 // ข้อมูลนักศึกษาและคะแนน
 const studentsData = ref([])
+const isLoading = ref(false) // เพิ่มตัวแปรแสดงสถานะการโหลด
 
 // ฟังก์ชันดึงข้อมูลนักศึกษาและคะแนน
 async function fetchStudentsData() {
   try {
+    isLoading.value = true;
     const querySnapshot = await getDocs(collection(db, 'students'));
     
     // สร้างอาร์เรย์ข้อมูลนักศึกษาพร้อมคะแนน
@@ -72,6 +75,7 @@ async function fetchStudentsData() {
       return {
         id: doc.id,
         studentId: doc.id,
+        name: data.name || '',
         firstName,
         lastName,
         major: data.major || '',
@@ -91,6 +95,13 @@ async function fetchStudentsData() {
     
   } catch (error) {
     console.error('Error fetching students data:', error);
+    Swal.fire({
+      icon: 'error',
+      title: 'เกิดข้อผิดพลาด',
+      text: 'ไม่สามารถดึงข้อมูลนักศึกษาได้'
+    });
+  } finally {
+    isLoading.value = false;
   }
 }
 
@@ -137,6 +148,7 @@ const filteredStudents = computed(() => {
     student.studentId.toLowerCase().includes(query) || 
     student.firstName.toLowerCase().includes(query) || 
     student.lastName.toLowerCase().includes(query) || 
+    student.name.toLowerCase().includes(query) ||
     (student.major && student.major.toLowerCase().includes(query))
   );
 });
@@ -198,6 +210,105 @@ function calculateTotalAttendance(student) {
 const labHeaders = Array.from({ length: 15 }, (_, i) => `Lab ${i + 1}`);
 const assignmentHeaders = Array.from({ length: 12 }, (_, i) => `Ass ${i + 1}`);
 const attendanceHeaders = Array.from({ length: 16 }, (_, i) => `ครั้งที่ ${i + 1}`);
+
+// ฟังก์ชันส่งออกข้อมูลเป็นไฟล์ Excel
+function exportToExcel() {
+  // เตรียมข้อมูลสำหรับส่งออก
+  let data = [];
+  let headers = [];
+  
+  // กำหนดหัวตารางตามประเภทที่เลือก
+  if (selectedScoreType.value === 'lab') {
+    headers = ['รหัสนักศึกษา', 'ชื่อ-นามสกุล', ...labHeaders, 'คะแนนรวม'];
+    
+    // เตรียมข้อมูลแต่ละแถว
+    data = filteredStudents.value.map(student => {
+      const row = [
+        student.studentId,
+        `${student.firstName} ${student.lastName}`,
+      ];
+      
+      // เพิ่มคะแนนแต่ละ lab
+      for (let i = 1; i <= 15; i++) {
+        row.push(getLabScore(student, i.toString()));
+      }
+      
+      // เพิ่มคะแนนรวม
+      row.push(calculateTotalLabScore(student));
+      
+      return row;
+    });
+  } 
+  else if (selectedScoreType.value === 'assignment') {
+    headers = ['รหัสนักศึกษา', 'ชื่อ-นามสกุล', ...assignmentHeaders, 'คะแนนรวม'];
+    
+    data = filteredStudents.value.map(student => {
+      const row = [
+        student.studentId,
+        `${student.firstName} ${student.lastName}`,
+      ];
+      
+      for (let i = 1; i <= 12; i++) {
+        row.push(getAssignmentScore(student, i.toString()));
+      }
+      
+      row.push(calculateTotalAssignmentScore(student));
+      
+      return row;
+    });
+  }
+  else if (selectedScoreType.value === 'attendance') {
+    headers = ['รหัสนักศึกษา', 'ชื่อ-นามสกุล', ...attendanceHeaders, 'รวมครั้ง'];
+    
+    data = filteredStudents.value.map(student => {
+      const row = [
+        student.studentId,
+        `${student.firstName} ${student.lastName}`,
+      ];
+      
+      for (let i = 1; i <= 16; i++) {
+        row.push(getAttendanceStatus(student, i.toString()));
+      }
+      
+      row.push(calculateTotalAttendance(student));
+      
+      return row;
+    });
+  }
+  
+  // สร้าง worksheet
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...data]);
+  
+  // สร้าง workbook
+  const workbook = XLSX.utils.book_new();
+  
+  // กำหนดชื่อตามประเภทคะแนน
+  let sheetName = 'คะแนน';
+  if (selectedScoreType.value === 'lab') {
+    sheetName = 'คะแนน Lab';
+  } else if (selectedScoreType.value === 'assignment') {
+    sheetName = 'คะแนน Assignment';
+  } else if (selectedScoreType.value === 'attendance') {
+    sheetName = 'ข้อมูลเช็คชื่อ';
+  }
+  
+  // เพิ่ม worksheet ลงใน workbook
+  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+  
+  // สร้างและดาวน์โหลดไฟล์ Excel
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}-${(today.getMonth()+1).toString().padStart(2, '0')}-${today.getDate().toString().padStart(2, '0')}`;
+  XLSX.writeFile(workbook, `${sheetName}_${dateStr}.xlsx`);
+  
+  // แจ้งเตือนสำเร็จ
+  Swal.fire({
+    icon: 'success',
+    title: 'ส่งออกข้อมูลสำเร็จ',
+    text: `ได้ส่งออกข้อมูล${sheetName}เรียบร้อยแล้ว`,
+    timer: 2000,
+    showConfirmButton: false
+  });
+}
 
 // ดึงข้อมูล user ที่ล็อกอินอยู่
 onMounted(() => {
@@ -263,7 +374,17 @@ async function logout() {
     <!-- Main Content -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div class="bg-white shadow-md rounded-lg p-6">
-        <h2 class="text-2xl font-bold text-gray-800 mb-6">ตารางคะแนนรวม</h2>
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-bold text-gray-800">ตารางคะแนนรวม</h2>
+          <button @click="exportToExcel" 
+            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300 flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            ส่งออกเป็น Excel
+          </button>
+        </div>
         
         <!-- Score Type Selector -->
         <div class="mb-6 bg-white rounded-lg shadow p-4">
@@ -333,38 +454,55 @@ async function logout() {
           </div>
         </div>
         
+        <!-- Loading Indicator -->
+        <div v-if="isLoading" class="flex justify-center items-center py-10">
+          <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500"></div>
+          <span class="ml-3 text-lg text-gray-700">กำลังโหลดข้อมูล...</span>
+        </div>
+        
         <!-- Score Table -->
-        <div class="overflow-x-auto">
+        <div v-else class="overflow-x-auto bg-gray-50 rounded-lg p-4">
           <!-- Lab Scores Table -->
-          <table v-if="selectedScoreType === 'lab'" class="min-w-full divide-y divide-gray-200 border">
-            <thead class="bg-gray-50">
+          <table v-if="selectedScoreType === 'lab'" class="min-w-full divide-y divide-gray-200 border bg-white">
+            <thead class="bg-blue-50">
               <tr>
-                <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10 border-r">
+                <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-blue-800 uppercase tracking-wider sticky left-0 bg-blue-50 z-10 border-r">
                   รหัสนักศึกษา
                 </th>
-                <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-[120px] bg-gray-50 z-10 border-r">
+                <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-blue-800 uppercase tracking-wider sticky left-[120px] bg-blue-50 z-10 border-r">
                   ชื่อ-นามสกุล
                 </th>
-                <th v-for="(header, ) in labHeaders" :key="header" scope="col" class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r">
+                <th v-for="(header, index) in labHeaders" :key="header" scope="col" 
+                  class="px-3 py-3 text-center text-xs font-medium text-blue-800 uppercase tracking-wider border-r"
+                  :class="{'bg-blue-100': index % 2 === 0}">
                   {{ header }}
                 </th>
-                <th scope="col" class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" class="px-3 py-3 text-center text-xs font-medium text-blue-800 uppercase tracking-wider bg-blue-100">
                   รวม
                 </th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <tr v-for="student in filteredStudents" :key="student.id" class="hover:bg-gray-50">
-                <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 sticky left-0 bg-white z-10 border-r">
+              <tr v-for="(student, studentIndex) in filteredStudents" :key="student.id" 
+                  class="hover:bg-blue-50 transition-colors duration-150"
+                  :class="{'bg-blue-50': studentIndex % 2 === 1}">
+                <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 z-10 border-r"
+                    :class="{'bg-white': studentIndex % 2 === 0, 'bg-blue-50': studentIndex % 2 === 1}">
                   {{ student.studentId }}
                 </td>
-                <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 sticky left-[120px] bg-white z-10 border-r min-w-[180px]">
+                <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 sticky left-[120px] z-10 border-r min-w-[180px]"
+                    :class="{'bg-white': studentIndex % 2 === 0, 'bg-blue-50': studentIndex % 2 === 1}">
                   {{ student.firstName }} {{ student.lastName }}
                 </td>
-                <td v-for="i in 15" :key="i" class="px-3 py-2 whitespace-nowrap text-sm text-center text-gray-900 border-r">
-                  {{ getLabScore(student, i.toString()) }}
+                <td v-for="(_, i) in 15" :key="i" 
+                    class="px-3 py-2 whitespace-nowrap text-sm text-center border-r"
+                    :class="{'bg-blue-50': i % 2 === 0 && studentIndex % 2 === 0, 
+                            'bg-blue-100': i % 2 === 0 && studentIndex % 2 === 1}">
+                  <span :class="{'font-bold text-blue-700': getLabScore(student, (i+1).toString()) !== '-'}">
+                    {{ getLabScore(student, (i+1).toString()) }}
+                  </span>
                 </td>
-                <td class="px-3 py-2 whitespace-nowrap text-sm text-center font-medium text-gray-900">
+                <td class="px-3 py-2 whitespace-nowrap text-sm text-center font-medium text-blue-700 bg-blue-50">
                   {{ calculateTotalLabScore(student) }}
                 </td>
               </tr>
@@ -372,35 +510,46 @@ async function logout() {
           </table>
           
           <!-- Assignment Scores Table -->
-          <table v-if="selectedScoreType === 'assignment'" class="min-w-full divide-y divide-gray-200 border">
-            <thead class="bg-gray-50">
+          <table v-if="selectedScoreType === 'assignment'" class="min-w-full divide-y divide-gray-200 border bg-white">
+            <thead class="bg-green-50">
               <tr>
-                <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10 border-r">
+                <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider sticky left-0 bg-green-50 z-10 border-r">
                   รหัสนักศึกษา
                 </th>
-                <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-[120px] bg-gray-50 z-10 border-r">
+                <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-green-800 uppercase tracking-wider sticky left-[120px] bg-green-50 z-10 border-r">
                   ชื่อ-นามสกุล
                 </th>
-                <th v-for="header in assignmentHeaders" :key="header" scope="col" class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r">
+                <th v-for="(header, index) in assignmentHeaders" :key="header" scope="col" 
+                  class="px-3 py-3 text-center text-xs font-medium text-green-800 uppercase tracking-wider border-r"
+                  :class="{'bg-green-100': index % 2 === 0}">
                   {{ header }}
                 </th>
-                <th scope="col" class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" class="px-3 py-3 text-center text-xs font-medium text-green-800 uppercase tracking-wider bg-green-100">
                   รวม
                 </th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <tr v-for="student in filteredStudents" :key="student.id" class="hover:bg-gray-50">
-                <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 sticky left-0 bg-white z-10 border-r">
+              <tr v-for="(student, studentIndex) in filteredStudents" :key="student.id" 
+                  class="hover:bg-green-50 transition-colors duration-150"
+                  :class="{'bg-green-50': studentIndex % 2 === 1}">
+                <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 z-10 border-r"
+                    :class="{'bg-white': studentIndex % 2 === 0, 'bg-green-50': studentIndex % 2 === 1}">
                   {{ student.studentId }}
                 </td>
-                <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 sticky left-[120px] bg-white z-10 border-r min-w-[180px]">
+                <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 sticky left-[120px] z-10 border-r min-w-[180px]"
+                    :class="{'bg-white': studentIndex % 2 === 0, 'bg-green-50': studentIndex % 2 === 1}">
                   {{ student.firstName }} {{ student.lastName }}
                 </td>
-                <td v-for="i in 12" :key="i" class="px-3 py-2 whitespace-nowrap text-sm text-center text-gray-900 border-r">
-                  {{ getAssignmentScore(student, i.toString()) }}
+                <td v-for="(_, i) in 12" :key="i" 
+                    class="px-3 py-2 whitespace-nowrap text-sm text-center border-r"
+                    :class="{'bg-green-50': i % 2 === 0 && studentIndex % 2 === 0, 
+                            'bg-green-100': i % 2 === 0 && studentIndex % 2 === 1}">
+                  <span :class="{'font-bold text-green-700': getAssignmentScore(student, (i+1).toString()) !== '-'}">
+                    {{ getAssignmentScore(student, (i+1).toString()) }}
+                  </span>
                 </td>
-                <td class="px-3 py-2 whitespace-nowrap text-sm text-center font-medium text-gray-900">
+                <td class="px-3 py-2 whitespace-nowrap text-sm text-center font-medium text-green-700 bg-green-50">
                   {{ calculateTotalAssignmentScore(student) }}
                 </td>
               </tr>
@@ -408,40 +557,77 @@ async function logout() {
           </table>
           
           <!-- Attendance Table -->
-          <table v-if="selectedScoreType === 'attendance'" class="min-w-full divide-y divide-gray-200 border">
-            <thead class="bg-gray-50">
+          <table v-if="selectedScoreType === 'attendance'" class="min-w-full divide-y divide-gray-200 border bg-white">
+            <thead class="bg-purple-50">
               <tr>
-                <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-0 bg-gray-50 z-10 border-r">
+                <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-purple-800 uppercase tracking-wider sticky left-0 bg-purple-50 z-10 border-r">
                   รหัสนักศึกษา
                 </th>
-                <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sticky left-[120px] bg-gray-50 z-10 border-r">
+                <th scope="col" class="px-3 py-3 text-left text-xs font-medium text-purple-800 uppercase tracking-wider sticky left-[120px] bg-purple-50 z-10 border-r">
                   ชื่อ-นามสกุล
                 </th>
-                <th v-for="header in attendanceHeaders" :key="header" scope="col" class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r">
+                <th v-for="(header, index) in attendanceHeaders" :key="header" scope="col" 
+                  class="px-3 py-3 text-center text-xs font-medium text-purple-800 uppercase tracking-wider border-r"
+                  :class="{'bg-purple-100': index % 2 === 0}">
                   {{ header }}
                 </th>
-                <th scope="col" class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col" class="px-3 py-3 text-center text-xs font-medium text-purple-800 uppercase tracking-wider bg-purple-100">
                   รวม
                 </th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <tr v-for="student in filteredStudents" :key="student.id" class="hover:bg-gray-50">
-                <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 sticky left-0 bg-white z-10 border-r">
+              <tr v-for="(student, studentIndex) in filteredStudents" :key="student.id" 
+                  class="hover:bg-purple-50 transition-colors duration-150"
+                  :class="{'bg-purple-50': studentIndex % 2 === 1}">
+                <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 sticky left-0 z-10 border-r"
+                    :class="{'bg-white': studentIndex % 2 === 0, 'bg-purple-50': studentIndex % 2 === 1}">
                   {{ student.studentId }}
                 </td>
-                <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 sticky left-[120px] bg-white z-10 border-r min-w-[180px]">
+                <td class="px-3 py-2 whitespace-nowrap text-sm text-gray-900 sticky left-[120px] z-10 border-r min-w-[180px]"
+                    :class="{'bg-white': studentIndex % 2 === 0, 'bg-purple-50': studentIndex % 2 === 1}">
                   {{ student.firstName }} {{ student.lastName }}
                 </td>
-                <td v-for="i in 16" :key="i" class="px-3 py-2 whitespace-nowrap text-sm text-center text-gray-900 border-r">
-                  {{ getAttendanceStatus(student, i.toString()) }}
+                <td v-for="(_, i) in 16" :key="i" 
+                    class="px-3 py-2 whitespace-nowrap text-sm text-center border-r"
+                    :class="{'bg-purple-50': i % 2 === 0 && studentIndex % 2 === 0, 
+                            'bg-purple-100': i % 2 === 0 && studentIndex % 2 === 1}">
+                  <span :class="{'font-bold text-purple-700': getAttendanceStatus(student, (i+1).toString()) === '✓'}">
+                    {{ getAttendanceStatus(student, (i+1).toString()) }}
+                  </span>
                 </td>
-                <td class="px-3 py-2 whitespace-nowrap text-sm text-center font-medium text-gray-900">
+                <td class="px-3 py-2 whitespace-nowrap text-sm text-center font-medium text-purple-700 bg-purple-50">
                   {{ calculateTotalAttendance(student) }}
                 </td>
               </tr>
             </tbody>
           </table>
+          
+          <!-- No Data Message -->
+          <div v-if="filteredStudents.length === 0" class="py-8 text-center text-gray-500">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <h3 class="mt-2 text-lg font-medium text-gray-900">ไม่พบข้อมูลนักศึกษา</h3>
+            <p class="mt-1 text-sm text-gray-500">ลองปรับเงื่อนไขการค้นหาหรือตรวจสอบการเชื่อมต่อฐานข้อมูล</p>
+          </div>
+        </div>
+        
+        <!-- Legend -->
+        <div class="mt-4 text-sm text-gray-500 flex flex-wrap gap-x-6 gap-y-2">
+          <div v-if="selectedScoreType === 'lab'">
+            <span class="font-bold text-blue-700">10</span> = คะแนนที่บันทึกแล้ว
+          </div>
+          <div v-if="selectedScoreType === 'assignment'">
+            <span class="font-bold text-green-700">10</span> = คะแนนที่บันทึกแล้ว
+          </div>
+          <div v-if="selectedScoreType === 'attendance'">
+            <span class="font-bold text-purple-700">✓</span> = มาเรียน
+          </div>
+          <div>
+            <span>-</span> = ยังไม่มีข้อมูล
+          </div>
         </div>
       </div>
     </div>
@@ -458,9 +644,24 @@ async function logout() {
 
 table {
   table-layout: fixed;
+  border-collapse: collapse;
+  width: 100%;
 }
 
 th, td {
   min-width: 80px;
+}
+
+/* สไตล์สำหรับความสวยงามของตาราง */
+th {
+  position: sticky;
+  top: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.sticky {
+  position: sticky;
+  background-color: inherit;
+  z-index: 10;
 }
 </style>
