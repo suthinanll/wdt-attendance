@@ -1,4 +1,4 @@
-<!-- src/views/Home.vue -->
+<!-- src/views/Home.vue หรือ StudentList.vue -->
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
@@ -21,40 +21,31 @@ const router = useRouter()
 const userEmail = ref('')
 const students = ref([])
 const showModal = ref(false)
-const editingStudent = ref(null) // เก็บ object student ที่กำลังแก้ไข
+const editingStudent = ref(null)
 const isLoading = ref(false)
 const isImporting = ref(false)
 const searchQuery = ref('')
 const fileInput = ref(null)
 
-// 1. เพิ่ม ref สำหรับตัวกรองหลักสูตร
-const selectedProgramFilter = ref('') // '' หมายถึงทั้งหมด, หรือ 'SC-CS', 'SC-IT'
-
 // Form data สำหรับ Modal
 const formData = ref({
   studentId: '',
   name: '',
-  program: '' // ชื่อฟิลด์ใน Firestore ของคุณสำหรับหลักสูตร
+  major: '',
+  section: ''
 })
 
-// 2. ปรับ filteredStudents
+// ปรับ filteredStudents ให้กรองตามการค้นหาเท่านั้น
 const filteredStudents = computed(() => {
   let result = students.value
 
-  // กรองตาม searchQuery ก่อน
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase()
     result = result.filter(student =>
       student.studentId.toLowerCase().includes(query) ||
       student.name.toLowerCase().includes(query) ||
-      (student.program && student.program.toLowerCase().includes(query))
-    )
-  }
-
-  // กรองตาม selectedProgramFilter
-  if (selectedProgramFilter.value) {
-    result = result.filter(student =>
-      student.program && student.program.toUpperCase() === selectedProgramFilter.value.toUpperCase()
+      (student.major && student.major.toLowerCase().includes(query)) ||
+      (student.section && student.section.toLowerCase().includes(query))
     )
   }
   return result
@@ -78,8 +69,8 @@ async function loadStudents() {
     students.value = []
     querySnapshot.forEach((doc) => {
       students.value.push({
-        id: doc.id, // Firestore document ID
-        studentId: doc.id, // Assuming studentId is the document ID and is unique
+        id: doc.id,
+        studentId: doc.id,
         ...doc.data()
       })
     })
@@ -101,17 +92,19 @@ function openAddModal() {
   formData.value = {
     studentId: '',
     name: '',
-    program: ''
+    major: '',
+    section: ''
   }
   showModal.value = true
 }
 
 function openEditModal(student) {
-  editingStudent.value = student // student object from the list
+  editingStudent.value = student
   formData.value = {
-    studentId: student.studentId, // รหัสนักศึกษา (document ID) จะไม่ให้แก้
+    studentId: student.studentId,
     name: student.name,
-    program: student.program || ''
+    major: student.major || '',
+    section: student.section || ''
   }
   showModal.value = true
 }
@@ -119,48 +112,37 @@ function openEditModal(student) {
 function closeModal() {
   showModal.value = false
   editingStudent.value = null
-  formData.value = { studentId: '', name: '', program: '' }
+  formData.value = { studentId: '', name: '', major: '', section: '' }
 }
 
 async function saveStudent() {
-  if (!formData.value.studentId || !formData.value.name || !formData.value.program) {
-    Swal.fire('กรุณากรอกข้อมูล', 'กรุณากรอกข้อมูลให้ครบถ้วน (รหัสนักศึกษา, ชื่อ, หลักสูตร)', 'warning')
+  if (!formData.value.studentId || !formData.value.name) {
+    Swal.fire('กรุณากรอกข้อมูล', 'กรุณากรอกข้อมูลให้ครบถ้วน (รหัสนักศึกษา, ชื่อ)', 'warning')
     return
   }
 
   try {
-    isLoading.value = true // ใช้ isLoading สำหรับ modal save ด้วย
+    isLoading.value = true
     const studentData = {
       name: formData.value.name,
-      program: formData.value.program
-      // studentId ไม่ต้องใส่ใน data ที่จะ set/update เพราะมันคือ ID ของ document
+      major: formData.value.major || '',
+      section: formData.value.section || ''
     }
 
     if (editingStudent.value) {
-      // แก้ไขข้อมูล: editingStudent.value.id คือ ID ของ document ที่จะแก้ไข
       const studentRef = doc(db, 'students', editingStudent.value.id)
       await updateDoc(studentRef, studentData)
       Swal.fire('สำเร็จ', 'แก้ไขข้อมูลนักศึกษาเรียบร้อย', 'success')
     } else {
-      // เพิ่มข้อมูลใหม่: formData.value.studentId คือ ID ของ document ใหม่
-      // ตรวจสอบว่ารหัสนักศึกษานี้ยังไม่มีในระบบก่อน (อาจจะต้อง query Firestore)
-      // หรือถ้ามั่นใจว่า Firestore rules จัดการได้ ก็ setDoc ไปเลย
       const studentRef = doc(db, 'students', formData.value.studentId)
-      await setDoc(studentRef, studentData) // setDoc จะสร้างใหม่ถ้าไม่มี หรือเขียนทับถ้ามี
+      await setDoc(studentRef, studentData)
       Swal.fire('สำเร็จ', 'เพิ่มนักศึกษาเรียบร้อย', 'success')
     }
     closeModal()
-    loadStudents() // โหลดข้อมูลใหม่หลังบันทึก
+    loadStudents()
   } catch (error) {
     console.error('Error saving student:', error)
-    if (error.code === 'permission-denied') {
-      Swal.fire('เกิดข้อผิดพลาด', 'ไม่มีสิทธิ์ในการเข้าถึงข้อมูล', 'error')
-    } else if (error.code === 'already-exists' && !editingStudent.value) { // Firestore ไม่ได้ throw already-exists สำหรับ setDoc โดยตรง
-      Swal.fire('เกิดข้อผิดพลาด', `รหัสนักศึกษา ${formData.value.studentId} มีอยู่ในระบบแล้ว`, 'error')
-    }
-    else {
-      Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้', 'error')
-    }
+    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้', 'error')
   } finally {
     isLoading.value = false
   }
@@ -180,15 +162,15 @@ async function deleteStudent(studentToDelete) {
 
   if (result.isConfirmed) {
     try {
-      isLoading.value = true; // อาจจะเพิ่ม loading state สำหรับการลบ
-      await deleteDoc(doc(db, 'students', studentToDelete.id)) // studentToDelete.id คือ document ID
+      isLoading.value = true
+      await deleteDoc(doc(db, 'students', studentToDelete.id))
       Swal.fire('สำเร็จ', 'ลบนักศึกษาเรียบร้อย', 'success')
       loadStudents()
     } catch (error) {
       console.error('Error deleting student:', error)
       Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถลบข้อมูลได้', 'error')
     } finally {
-      isLoading.value = false;
+      isLoading.value = false
     }
   }
 }
@@ -216,13 +198,11 @@ function triggerFileInput() {
 
 async function handleFileUpload(event) {
   const file = event.target.files[0]
-  if (!file) {
-    return
-  }
+  if (!file) return
 
   if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-    Swal.fire('ไฟล์ไม่ถูกต้อง', 'กรุณาเลือกไฟล์ Excel (.xlsx หรือ .xls)', 'error');
-    return;
+    Swal.fire('ไฟล์ไม่ถูกต้อง', 'กรุณาเลือกไฟล์ Excel (.xlsx หรือ .xls)', 'error')
+    return
   }
 
   isImporting.value = true
@@ -237,118 +217,100 @@ async function handleFileUpload(event) {
       const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
 
       if (jsonData.length < 2) {
-        Swal.fire('ไฟล์ว่างเปล่า', 'ไม่พบข้อมูลนักศึกษาในไฟล์ Excel (ต้องมีอย่างน้อย 1 แถวข้อมูลหลัง Header)', 'warning')
+        Swal.fire('ไฟล์ว่างเปล่า', 'ไม่พบข้อมูลนักศึกษาในไฟล์ Excel', 'warning')
         isImporting.value = false
         if (fileInput.value) fileInput.value.value = ''
         return
       }
-      
-      const rawHeadersFromExcel = jsonData[0];
+
+      const rawHeadersFromExcel = jsonData[0]
       if (!rawHeadersFromExcel || rawHeadersFromExcel.length === 0) {
-        Swal.fire('หัวคอลัมน์ไม่ถูกต้อง', 'ไม่สามารถอ่านหัวคอลัมน์จากไฟล์ Excel ได้ (แถวแรกอาจว่างเปล่า)', 'error');
-        isImporting.value = false;
-        if (fileInput.value) fileInput.value.value = '';
-        return;
+        Swal.fire('หัวคอลัมน์ไม่ถูกต้อง', 'ไม่สามารถอ่านหัวคอลัมน์จากไฟล์ Excel ได้', 'error')
+        isImporting.value = false
+        if (fileInput.value) fileInput.value.value = ''
+        return
       }
 
       const headers = rawHeadersFromExcel.map(h => String(h || '').trim().toLowerCase())
-
-      // --- กำหนดชื่อหัวคอลัมน์ใน Excel ของคุณ ---
-      const studentIdHeaderExcel = "รหัสประจำตัว"; // หรือ "รหัสนักศึกษา" หรือชื่อที่คุณใช้
-      const nameHeaderExcel = "ชื่อ";            // หรือ "ชื่อ-สกุล"
-      const programHeaderExcel = "เอก";          // หรือ "หลักสูตร"
-      // --- จบการกำหนด ---
+      const studentIdHeaderExcel = "รหัสประจำตัว"
+      const nameHeaderExcel = "ชื่อ"
+      const majorHeaderExcel = "สาขา"
+      const sectionHeaderExcel = "กลุ่มเรียน"
 
       const studentIdIndex = headers.indexOf(studentIdHeaderExcel.toLowerCase())
       const nameIndex = headers.indexOf(nameHeaderExcel.toLowerCase())
-      const programIndex = headers.indexOf(programHeaderExcel.toLowerCase()) // คอลัมน์หลักสูตร
+      const majorIndex = headers.indexOf(majorHeaderExcel.toLowerCase())
+      const sectionIndex = headers.indexOf(sectionHeaderExcel.toLowerCase())
 
-      if (studentIdIndex === -1 || nameIndex === -1 || programIndex === -1) {
-        let missingHeaders = [];
-        if(studentIdIndex === -1) missingHeaders.push(`"${studentIdHeaderExcel}"`);
-        if(nameIndex === -1) missingHeaders.push(`"${nameHeaderExcel}"`);
-        if(programIndex === -1) missingHeaders.push(`"${programHeaderExcel}"`); // เพิ่มการตรวจสอบ program
+      if (studentIdIndex === -1 || nameIndex === -1) {
+        let missingHeaders = []
+        if (studentIdIndex === -1) missingHeaders.push(`"${studentIdHeaderExcel}"`)
+        if (nameIndex === -1) missingHeaders.push(`"${nameHeaderExcel}"`)
 
         Swal.fire({
           title: 'หัวคอลัมน์ไม่ถูกต้อง',
-          html: `ไม่พบหัวคอลัมน์ที่คาดหวังในไฟล์ Excel:<br><strong>${missingHeaders.join(', ')}</strong>.<br><br>
-                 <u>หัวคอลัมน์ที่อ่านได้จากไฟล์ (หลัง trim และ toLowerCase):</u><br>
-                 <code>[${headers.join('", "')}]</code><br><br>
-                 กรุณาตรวจสอบว่าไฟล์มีคอลัมน์: ${studentIdHeaderExcel}, ${nameHeaderExcel}, ${programHeaderExcel}`,
+          html: `ไม่พบหัวคอลัมน์ที่คาดหวังในไฟล์ Excel:<br><strong>${missingHeaders.join(', ')}</strong>`,
           icon: 'error'
-        });
-        isImporting.value = false;
-        if (fileInput.value) fileInput.value.value = '';
-        return;
+        })
+        isImporting.value = false
+        if (fileInput.value) fileInput.value.value = ''
+        return
       }
 
       const studentsToImport = []
-      let skippedRowCount = 0;
-      for (let i = 1; i < jsonData.length; i++) { // เริ่มจาก 1 เพื่อข้าม header
-        const row = jsonData[i];
-        // ตรวจสอบว่า row ไม่ใช่ null และมีข้อมูลอย่างน้อย 1 cell ที่ไม่ว่างเปล่า
+      let skippedRowCount = 0
+      for (let i = 1; i < jsonData.length; i++) {
+        const row = jsonData[i]
         if (row && row.length > 0 && row.some(cell => cell !== null && String(cell).trim() !== '')) {
-          const studentId = String(row[studentIdIndex] || '').trim();
-          const name = String(row[nameIndex] || '').trim();
-          let programValue = String(row[programIndex] || '').trim().toUpperCase(); // ทำเป็นตัวใหญ่เพื่อเทียบง่าย
+          const studentId = String(row[studentIdIndex] || '').trim()
+          const name = String(row[nameIndex] || '').trim()
+          const majorValue = majorIndex !== -1 ? String(row[majorIndex] || '').trim() : ''
+          const sectionValue = sectionIndex !== -1 ? String(row[sectionIndex] || '').trim() : ''
 
-          // ตัวอย่าง: ถ้าข้อมูล Program ใน Excel เป็นชื่อเต็ม และต้องการให้เป็น SC-CS/SC-IT
-          // if (programValue.includes("วิทยาการคอมพิวเตอร์") || programValue.includes("COMPUTER SCIENCE")) {
-          //   programValue = "SC-CS";
-          // } else if (programValue.includes("เทคโนโลยีสารสนเทศ") || programValue.includes("INFORMATION TECHNOLOGY")) {
-          //   programValue = "SC-IT";
-          // } // ถ้าใน Excel เป็น SC-CS/SC-IT อยู่แล้ว ก็ไม่ต้อง map
-
-          if (studentId && name && programValue) { // ตรวจสอบว่ามีข้อมูลครบ
+          if (studentId && name) {
             studentsToImport.push({
-              studentId: studentId, // นี่จะเป็น ID ของ document
+              studentId: studentId,
               name: name,
-              program: programValue
-            });
-          } else if (studentId || name || programValue) { // ถ้ามีข้อมูลบางส่วน แต่ไม่ครบ ให้ log เตือน
-             console.warn(`Skipping row ${i+1} due to missing required data ("${studentIdHeaderExcel}", "${nameHeaderExcel}", or "${programHeaderExcel}"):`, row.map(cell => String(cell || '').trim()));
-             skippedRowCount++;
+              major: majorValue,
+              section: sectionValue
+            })
+          } else {
+            skippedRowCount++
           }
-          // ถ้าแถวว่างเปล่าทั้งหมด จะถูกข้ามไปโดยปริยาย
         }
       }
 
       if (studentsToImport.length === 0) {
-        Swal.fire('ไม่พบข้อมูล', `ไม่พบข้อมูลนักศึกษาที่ถูกต้องตามรูปแบบ ("${studentIdHeaderExcel}", "${nameHeaderExcel}", "${programHeaderExcel}") ในไฟล์${skippedRowCount > 0 ? ` (ข้ามไป ${skippedRowCount} แถวที่ไม่สมบูรณ์)` : ''}`, 'warning');
-        isImporting.value = false;
-        if (fileInput.value) fileInput.value.value = '';
-        return;
+        Swal.fire('ไม่พบข้อมูล', `ไม่พบข้อมูลนักศึกษาที่ถูกต้องในไฟล์`, 'warning')
+        isImporting.value = false
+        if (fileInput.value) fileInput.value.value = ''
+        return
       }
 
       const batch = writeBatch(db)
       studentsToImport.forEach(student => {
-        const studentRef = doc(db, 'students', student.studentId) // ใช้ studentId เป็น document ID
-        const studentData = { // ข้อมูลที่จะเขียนลง Firestore
-          name: student.name,
-          program: student.program
-          // ไม่ต้องใส่ studentId ที่นี่อีก เพราะมันเป็น ID ของ doc แล้ว
+        const studentRef = doc(db, 'students', student.studentId)
+        const studentData = {
+          name: student.name || '',
+          major: student.major || '',
+          section: student.section || ''
         }
-        batch.set(studentRef, studentData) // setDoc จะสร้างใหม่หรือเขียนทับ
+        batch.set(studentRef, studentData)
       })
 
       await batch.commit()
-
       Swal.fire('นำเข้าสำเร็จ', `เพิ่ม/อัปเดตข้อมูลนักศึกษา ${studentsToImport.length} คนเรียบร้อย${skippedRowCount > 0 ? ` (ข้ามไป ${skippedRowCount} แถวที่ไม่สมบูรณ์)` : ''}`, 'success')
       loadStudents()
-
     } catch (error) {
       console.error('Error importing students:', error)
-      Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถนำเข้าข้อมูลนักศึกษาได้ โปรดตรวจสอบรูปแบบไฟล์ Excel และ Console Log', 'error')
+      Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถนำเข้าข้อมูลนักศึกษาได้', 'error')
     } finally {
       isImporting.value = false
-      if (fileInput.value) {
-        fileInput.value.value = '' // Reset file input
-      }
+      if (fileInput.value) fileInput.value.value = ''
     }
   }
   reader.readAsArrayBuffer(file)
 }
-
 </script>
 
 <template>
@@ -404,8 +366,8 @@ async function handleFileUpload(event) {
 
       <!-- Filters and Search Bar -->
       <div class="mb-6 bg-white rounded-lg shadow p-4">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-          <div class="md:col-span-2 flex-1 relative">
+        <div class="flex flex-col sm:flex-row gap-4 items-center">
+          <div class="flex-1 relative">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
@@ -413,33 +375,21 @@ async function handleFileUpload(event) {
             </div>
             <input v-model="searchQuery" type="text"
               class="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm sm:text-base"
-              placeholder="ค้นหาด้วยรหัสนักศึกษา ชื่อ หรือหลักสูตร...">
+              placeholder="ค้นหาด้วยรหัสนักศึกษา ชื่อ หรือสาขา...">
             <button v-if="searchQuery" @click="clearSearch"
               class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
           </div>
-
-          <div class="relative">
-            <select v-model="selectedProgramFilter"
-              class="block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md leading-5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm sm:text-base">
-              <option value="">หลักสูตรทั้งหมด</option>
-              <option value="SC-CS">SC-CS (วิทยาการคอมพิวเตอร์)</option>
-              <option value="SC-IT">SC-IT (เทคโนโลยีสารสนเทศ)</option>
-              <!-- เพิ่ม option อื่นๆ ตามหลักสูตรที่มี -->
-            </select>
-          </div>
         </div>
 
-        <div v-if="searchQuery || selectedProgramFilter" class="mt-3 text-sm text-gray-600">
+        <div v-if="searchQuery" class="mt-3 text-sm text-gray-600">
           <span v-if="filteredStudents.length > 0">
             พบ <span class="font-semibold text-green-600">{{ filteredStudents.length }}</span> รายการ
             จากทั้งหมด {{ students.length }} รายการ
-            <span v-if="selectedProgramFilter" class="ml-2">(กรองจากหลักสูตร: <span class="font-semibold">{{ selectedProgramFilter.toUpperCase() }}</span>)</span>
           </span>
           <span v-else class="text-red-600">
-            ไม่พบรายการที่ตรงกับการค้นหา/ตัวกรอง
-            <span v-if="selectedProgramFilter" class="ml-1">(หลักสูตร: {{ selectedProgramFilter.toUpperCase() }})</span>
+            ไม่พบรายการที่ตรงกับการค้นหา
           </span>
         </div>
       </div>
@@ -454,7 +404,7 @@ async function handleFileUpload(event) {
           <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <p class="mt-2 text-gray-600">กำลังนำเข้าข้อมูลจาก Excel...</p>
         </div>
-        <div v-else-if="students.length === 0 && !searchQuery && !selectedProgramFilter" class="p-8 text-center text-gray-500">
+        <div v-else-if="students.length === 0 && !searchQuery" class="p-8 text-center text-gray-500">
           <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
@@ -463,12 +413,12 @@ async function handleFileUpload(event) {
             เพิ่มนักศึกษาคนแรก
           </button>
         </div>
-        <div v-else-if="filteredStudents.length === 0 && (searchQuery || selectedProgramFilter)" class="p-8 text-center text-gray-500">
+        <div v-else-if="filteredStudents.length === 0 && searchQuery" class="p-8 text-center text-gray-500">
           <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
           </svg>
-          <p class="mt-2">ไม่พบรายการที่ตรงกับการค้นหา/ตัวกรอง</p>
-          <button @click="searchQuery = ''; selectedProgramFilter = ''" class="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300">
+          <p class="mt-2">ไม่พบรายการที่ตรงกับการค้นหา</p>
+          <button @click="searchQuery = ''" class="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300">
             แสดงทั้งหมด
           </button>
         </div>
@@ -481,10 +431,13 @@ async function handleFileUpload(event) {
                   รหัสนักศึกษา
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  ชื่อ
+                  ชื่อ-นามสกุล
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  หลักสูตร
+                  สาขา
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  กลุ่มเรียน
                 </th>
                 <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   จัดการ
@@ -494,13 +447,16 @@ async function handleFileUpload(event) {
             <tbody class="bg-white divide-y divide-gray-200">
               <tr v-for="student in filteredStudents" :key="student.id" class="hover:bg-gray-50">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  <span v-html="highlightMatch(student.studentId, searchQuery)"></span>
+                  {{ student.studentId }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  <span v-html="highlightMatch(student.name, searchQuery)"></span>
+                  {{ student.name }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  <span v-html="highlightMatch(student.program, searchQuery)"></span>
+                  {{ student.major || '-' }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {{ student.section || '-' }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <button @click="openEditModal(student)"
@@ -527,7 +483,7 @@ async function handleFileUpload(event) {
         <h3 class="text-lg font-medium text-gray-900 mb-2">สรุปข้อมูล</h3>
         <div class="flex flex-col sm:flex-row gap-4 text-gray-600 text-sm">
           <p>จำนวนนักศึกษาทั้งหมด: <span class="font-semibold text-green-600">{{ students.length }}</span> คน</p>
-          <p v-if="searchQuery || selectedProgramFilter">แสดงผล (จากการค้นหา/กรอง): <span class="font-semibold text-blue-600">{{ filteredStudents.length }}</span> คน</p>
+          <p v-if="searchQuery">แสดงผล (จากการค้นหา): <span class="font-semibold text-blue-600">{{ filteredStudents.length }}</span> คน</p>
         </div>
       </div>
     </main>
@@ -547,21 +503,28 @@ async function handleFileUpload(event) {
                 :disabled="editingStudent !== null"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 placeholder="เช่น 663380006-1">
-                <p v-if="editingStudent !== null" class="mt-1 text-xs text-gray-500">ไม่สามารถแก้ไขรหัสนักศึกษาได้</p>
+              <p v-if="editingStudent !== null" class="mt-1 text-xs text-gray-500">ไม่สามารถแก้ไขรหัสนักศึกษาได้</p>
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ *</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อ-นามสกุล *</label>
               <input v-model="formData.name" type="text" required
                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="ชื่อ นามสกุล">
             </div>
 
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">หลักสูตร *</label>
-              <input v-model="formData.program" type="text" required
+              <label class="block text-sm font-medium text-gray-700 mb-1">สาขา</label>
+              <input v-model="formData.major" type="text"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="เช่น SC-CS, SC-IT">
+                placeholder="เช่น วิทยาการคอมพิวเตอร์">
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">กลุ่มเรียน</label>
+              <input v-model="formData.section" type="text"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                placeholder="เช่น 1, 2">
             </div>
 
             <div class="flex justify-end space-x-3 pt-4">
@@ -585,20 +548,55 @@ async function handleFileUpload(event) {
   </div>
 </template>
 
-<script>
-// Existing script block for methods if not using <script setup> for everything
-// For <script setup>, methods are defined directly in the setup context.
-// This highlightMatch can be defined globally or as a utility if preferred.
-export default {
-  methods: {
-    highlightMatch(text, searchQuery) {
-      if (!searchQuery || !text) return String(text || ''); // Ensure text is always a string
-      const textStr = String(text);
-      // Escape special characters in searchQuery for RegExp
-      const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`(${escapedQuery})`, 'gi');
-      return textStr.replace(regex, '<mark class="bg-yellow-200 px-1 rounded">$1</mark>');
-    }
-  }
+<style scoped>
+.overflow-x-auto {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
-</script>
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+th, td {
+  padding: 12px 16px;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  font-family: 'kanit';
+}
+
+th {
+  background-color: #f8fafc;
+  color: #2d3748;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+td {
+  background-color: white;
+  color: #4a5568;
+}
+
+tbody tr:nth-child(even) {
+  background-color: #f7fafc;
+}
+
+tbody tr:hover {
+  background-color: #edf2f7;
+}
+
+table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+</style>
