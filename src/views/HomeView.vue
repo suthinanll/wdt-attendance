@@ -300,9 +300,10 @@ function goToScoreboard() {
           </div>
         </div>
       </div>
-
-
-
+<br>
+      <footer class="text-center py-4 text-xs text-gray-500">
+        &copy; {{ new Date().getFullYear() }} CP352201 & SC362201 Web Design Technologies
+      </footer>
     </main>
   </div>
 </template>

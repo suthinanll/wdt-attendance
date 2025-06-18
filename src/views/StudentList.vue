@@ -85,7 +85,7 @@ async function loadStudents() {
     students.value = []
     const majorSet = new Set()
     const sectionSet = new Set()
-    
+
     querySnapshot.forEach((doc) => {
       const studentData = {
         id: doc.id,
@@ -93,11 +93,11 @@ async function loadStudents() {
         ...doc.data()
       }
       students.value.push(studentData)
-      
+
       if (studentData.major) majorSet.add(studentData.major)
       if (studentData.section) sectionSet.add(studentData.section)
     })
-    
+
     students.value.sort((a, b) => a.studentId.localeCompare(b.studentId))
     majors.value = Array.from(majorSet).sort()
     sections.value = Array.from(sectionSet).sort()
@@ -379,13 +379,18 @@ async function handleFileUpload(event) {
           <input type="file" ref="fileInput" @change="handleFileUpload" accept=".xlsx, .xls" style="display: none;" />
           <button @click="triggerFileInput" :disabled="isImporting"
             class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300 font-medium flex items-center justify-center text-sm sm:text-base">
-            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+            </svg>
             {{ isImporting ? 'กำลังนำเข้า...' : 'นำเข้าจาก Excel' }}
           </button>
           <button @click="openAddModal"
             class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300 font-medium flex items-center justify-center text-sm sm:text-base">
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6">
+              </path>
             </svg>
             เพิ่มนักศึกษา
           </button>
@@ -398,7 +403,8 @@ async function handleFileUpload(event) {
           <div class="flex-1 relative">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
               </svg>
             </div>
             <input v-model="searchQuery" type="text"
@@ -406,7 +412,10 @@ async function handleFileUpload(event) {
               placeholder="ค้นหาด้วยรหัสนักศึกษา ชื่อ หรือสาขา...">
             <button v-if="searchQuery" @click="clearSearch"
               class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
             </button>
           </div>
           <div class="w-full sm:w-auto">
@@ -425,7 +434,10 @@ async function handleFileUpload(event) {
           </div>
           <button @click="clearSearch"
             class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition duration-300 font-medium flex items-center justify-center text-sm sm:text-base">
-            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
             ล้างตัวกรอง
           </button>
         </div>
@@ -451,21 +463,26 @@ async function handleFileUpload(event) {
           <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <p class="mt-2 text-gray-600">กำลังนำเข้าข้อมูลจาก Excel...</p>
         </div>
-        <div v-else-if="students.length === 0 && !searchQuery && !selectedMajor && !selectedSection" class="p-8 text-center text-gray-500">
+        <div v-else-if="students.length === 0 && !searchQuery && !selectedMajor && !selectedSection"
+          class="p-8 text-center text-gray-500">
           <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
           <p class="mt-2">ยังไม่มีข้อมูลนักศึกษา</p>
-          <button @click="openAddModal" class="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300">
+          <button @click="openAddModal"
+            class="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300">
             เพิ่มนักศึกษาคนแรก
           </button>
         </div>
         <div v-else-if="filteredStudents.length === 0" class="p-8 text-center text-gray-500">
           <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
           </svg>
           <p class="mt-2">ไม่พบรายการที่ตรงกับการค้นหา</p>
-          <button @click="clearSearch" class="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300">
+          <button @click="clearSearch"
+            class="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300">
             แสดงทั้งหมด
           </button>
         </div>
@@ -506,16 +523,18 @@ async function handleFileUpload(event) {
                   {{ student.section || '-' }}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button @click="openEditModal(student)"
-                    class="text-blue-600 hover:text-blue-900 mr-4">
+                  <button @click="openEditModal(student)" class="text-blue-600 hover:text-blue-900 mr-4">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                      </path>
                     </svg>
                   </button>
-                  <button @click="deleteStudent(student)"
-                    class="text-red-600 hover:text-red-900">
+                  <button @click="deleteStudent(student)" class="text-red-600 hover:text-red-900">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                      </path>
                     </svg>
                   </button>
                 </td>
@@ -530,13 +549,15 @@ async function handleFileUpload(event) {
         <h3 class="text-lg font-medium text-gray-900 mb-2">สรุปข้อมูล</h3>
         <div class="flex flex-col sm:flex-row gap-4 text-gray-600 text-sm">
           <p>จำนวนนักศึกษาทั้งหมด: <span class="font-semibold text-green-600">{{ students.length }}</span> คน</p>
-          <p v-if="searchQuery || selectedMajor || selectedSection">แสดงผล (จากการค้นหา): <span class="font-semibold text-blue-600">{{ filteredStudents.length }}</span> คน</p>
+          <p v-if="searchQuery || selectedMajor || selectedSection">แสดงผล (จากการค้นหา): <span
+              class="font-semibold text-blue-600">{{ filteredStudents.length }}</span> คน</p>
         </div>
       </div>
     </main>
 
     <!-- Modal -->
-    <div v-if="showModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+    <div v-if="showModal"
+      class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
       <div class="relative mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
         <div class="mt-3">
           <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">
@@ -546,8 +567,7 @@ async function handleFileUpload(event) {
           <form @submit.prevent="saveStudent" class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">รหัสนักศึกษา *</label>
-              <input v-model="formData.studentId" type="text" required
-                :disabled="editingStudent !== null"
+              <input v-model="formData.studentId" type="text" required :disabled="editingStudent !== null"
                 class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
                 placeholder="เช่น 663380006-1">
               <p v-if="editingStudent !== null" class="mt-1 text-xs text-gray-500">ไม่สามารถแก้ไขรหัสนักศึกษาได้</p>
@@ -590,9 +610,12 @@ async function handleFileUpload(event) {
               </button>
               <button type="submit" :disabled="isLoading"
                 class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition duration-300 disabled:opacity-50 flex items-center justify-center">
-                <svg v-if="isLoading" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg v-if="isLoading" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                   <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  <path class="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                  </path>
                 </svg>
                 {{ isLoading ? 'กำลังบันทึก...' : 'บันทึก' }}
               </button>
@@ -601,6 +624,12 @@ async function handleFileUpload(event) {
         </div>
       </div>
     </div>
+
+
+    <footer class="text-center py-4 text-xs text-gray-500">
+      &copy; {{ new Date().getFullYear() }} CP352201 & SC362201 Web Design Technologies
+    </footer>
+    <br>
   </div>
 </template>
 
@@ -618,7 +647,8 @@ table {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-th, td {
+th,
+td {
   padding: 12px 16px;
   text-align: left;
   border: 1px solid #e2e8f0;

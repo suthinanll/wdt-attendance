@@ -502,7 +502,6 @@ async function startSession() {
             </div>
           </div>
         </div>
-
       </div>
     </div>
 

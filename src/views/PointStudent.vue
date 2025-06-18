@@ -450,43 +450,13 @@ async function logout() {
         </div>
 
 
-        <div class="mt-6 bg-white rounded-lg shadow p-6">
-          <h3 class="text-lg font-medium text-gray-900 mb-4">สรุปคะแนนรวม</h3>
-          <div class="overflow-x-auto">
-            <table class="min-w-full">
-              <thead class="border-b-2 border-gray-200">
-                <tr>
-                  <th class="text-left py-2 px-3 text-sm font-semibold text-gray-700">รหัสนักศึกษา</th>
-                  <th class="text-left py-2 px-3 text-sm font-semibold text-gray-700">ชื่อ</th>
-                  <th class="text-right py-2 px-3 text-sm font-semibold text-gray-700">คะแนนรวม</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="isLoading && !students.length">
-                    <td colspan="3" class="py-4 text-center text-gray-500">กำลังโหลดข้อมูล...</td>
-                </tr>
-                <tr v-else-if="!filteredStudents.length && searchQuery">
-                    <td colspan="3" class="py-4 text-center text-gray-500">ไม่พบข้อมูลนักศึกษาที่ตรงกับการค้นหา</td>
-                </tr>
-                <tr v-else-if="!students.length">
-                    <td colspan="3" class="py-4 text-center text-gray-500">ยังไม่มีข้อมูลนักศึกษา</td>
-                </tr>
-                <template v-else>
-                  <tr v-for="student in filteredStudents.slice(0, 10)" :key="`summary-${student.id}`" class="border-b border-gray-100 hover:bg-gray-50">
-                    <td class="py-2 px-3 text-sm text-gray-800">{{ student.studentId }}</td>
-                    <td class="py-2 px-3 text-sm text-gray-800">{{ student.name }}</td>
-                    <td class="py-2 px-3 text-right font-medium text-sm text-gray-800">{{ getTotalScore(student) }}</td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-            <div v-if="filteredStudents.length > 10" class="text-center py-3 text-sm text-gray-500">
-              และอีก {{ filteredStudents.length - 10 }} คน... (แสดงผล 10 คนแรก)
-            </div>
-          </div>
-        </div>
+        
 
       </div>
+      <br>
+    <footer class="text-center py-4 text-xs text-gray-500">
+      &copy; {{ new Date().getFullYear() }} CP352201 & SC362201 Web Design Technologies
+    </footer>
 
       <!-- Removed Score Modal -->
 
