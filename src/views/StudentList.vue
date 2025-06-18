@@ -25,6 +25,10 @@ const editingStudent = ref(null)
 const isLoading = ref(false)
 const isImporting = ref(false)
 const searchQuery = ref('')
+const selectedMajor = ref('')
+const selectedSection = ref('')
+const majors = ref([])
+const sections = ref([])
 const fileInput = ref(null)
 
 // Form data สำหรับ Modal
@@ -35,7 +39,10 @@ const formData = ref({
   section: ''
 })
 
-// ปรับ filteredStudents ให้กรองตามการค้นหาเท่านั้น
+// ตัวเลือกสำหรับสาขาใน Modal
+const majorOptions = ['IT', 'CS']
+
+// ปรับ filteredStudents ให้กรองตามการค้นหา, สาขา และกลุ่มเรียน
 const filteredStudents = computed(() => {
   let result = students.value
 
@@ -48,6 +55,15 @@ const filteredStudents = computed(() => {
       (student.section && student.section.toLowerCase().includes(query))
     )
   }
+
+  if (selectedMajor.value) {
+    result = result.filter(student => student.major === selectedMajor.value)
+  }
+
+  if (selectedSection.value) {
+    result = result.filter(student => student.section === selectedSection.value)
+  }
+
   return result
 })
 
@@ -67,14 +83,24 @@ async function loadStudents() {
     isLoading.value = true
     const querySnapshot = await getDocs(collection(db, 'students'))
     students.value = []
+    const majorSet = new Set()
+    const sectionSet = new Set()
+    
     querySnapshot.forEach((doc) => {
-      students.value.push({
+      const studentData = {
         id: doc.id,
         studentId: doc.id,
         ...doc.data()
-      })
+      }
+      students.value.push(studentData)
+      
+      if (studentData.major) majorSet.add(studentData.major)
+      if (studentData.section) sectionSet.add(studentData.section)
     })
+    
     students.value.sort((a, b) => a.studentId.localeCompare(b.studentId))
+    majors.value = Array.from(majorSet).sort()
+    sections.value = Array.from(sectionSet).sort()
   } catch (error) {
     console.error('Error loading students:', error)
     Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลนักศึกษาได้', 'error')
@@ -85,6 +111,8 @@ async function loadStudents() {
 
 function clearSearch() {
   searchQuery.value = ''
+  selectedMajor.value = ''
+  selectedSection.value = ''
 }
 
 function openAddModal() {
@@ -381,9 +409,28 @@ async function handleFileUpload(event) {
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
           </div>
+          <div class="w-full sm:w-auto">
+            <select v-model="selectedMajor"
+              class="w-full sm:w-48 py-2 px-3 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base">
+              <option value="">ทุกสาขา</option>
+              <option v-for="major in majors" :key="major" :value="major">{{ major }}</option>
+            </select>
+          </div>
+          <div class="w-full sm:w-auto">
+            <select v-model="selectedSection"
+              class="w-full sm:w-48 py-2 px-3 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base">
+              <option value="">ทุกกลุ่มเรียน</option>
+              <option v-for="section in sections" :key="section" :value="section">{{ section }}</option>
+            </select>
+          </div>
+          <button @click="clearSearch"
+            class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition duration-300 font-medium flex items-center justify-center text-sm sm:text-base">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            ล้างตัวกรอง
+          </button>
         </div>
 
-        <div v-if="searchQuery" class="mt-3 text-sm text-gray-600">
+        <div v-if="searchQuery || selectedMajor || selectedSection" class="mt-3 text-sm text-gray-600">
           <span v-if="filteredStudents.length > 0">
             พบ <span class="font-semibold text-green-600">{{ filteredStudents.length }}</span> รายการ
             จากทั้งหมด {{ students.length }} รายการ
@@ -404,7 +451,7 @@ async function handleFileUpload(event) {
           <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <p class="mt-2 text-gray-600">กำลังนำเข้าข้อมูลจาก Excel...</p>
         </div>
-        <div v-else-if="students.length === 0 && !searchQuery" class="p-8 text-center text-gray-500">
+        <div v-else-if="students.length === 0 && !searchQuery && !selectedMajor && !selectedSection" class="p-8 text-center text-gray-500">
           <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
@@ -413,12 +460,12 @@ async function handleFileUpload(event) {
             เพิ่มนักศึกษาคนแรก
           </button>
         </div>
-        <div v-else-if="filteredStudents.length === 0 && searchQuery" class="p-8 text-center text-gray-500">
+        <div v-else-if="filteredStudents.length === 0" class="p-8 text-center text-gray-500">
           <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
           </svg>
           <p class="mt-2">ไม่พบรายการที่ตรงกับการค้นหา</p>
-          <button @click="searchQuery = ''" class="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300">
+          <button @click="clearSearch" class="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300">
             แสดงทั้งหมด
           </button>
         </div>
@@ -483,7 +530,7 @@ async function handleFileUpload(event) {
         <h3 class="text-lg font-medium text-gray-900 mb-2">สรุปข้อมูล</h3>
         <div class="flex flex-col sm:flex-row gap-4 text-gray-600 text-sm">
           <p>จำนวนนักศึกษาทั้งหมด: <span class="font-semibold text-green-600">{{ students.length }}</span> คน</p>
-          <p v-if="searchQuery">แสดงผล (จากการค้นหา): <span class="font-semibold text-blue-600">{{ filteredStudents.length }}</span> คน</p>
+          <p v-if="searchQuery || selectedMajor || selectedSection">แสดงผล (จากการค้นหา): <span class="font-semibold text-blue-600">{{ filteredStudents.length }}</span> คน</p>
         </div>
       </div>
     </main>
@@ -515,16 +562,25 @@ async function handleFileUpload(event) {
 
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">สาขา</label>
-              <input v-model="formData.major" type="text"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="เช่น วิทยาการคอมพิวเตอร์">
+              <select v-model="formData.major"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
+                <option value="">เลือกสาขา</option>
+                <option v-for="option in majorOptions" :key="option" :value="option">{{ option }}</option>
+              </select>
             </div>
 
             <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">กลุ่มเรียน</label>
-              <input v-model="formData.section" type="text"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                placeholder="เช่น 1, 2">
+              <div class="flex space-x-4">
+                <div class="flex items-center">
+                  <input type="radio" id="section1" value="1" v-model="formData.section" class="mr-2">
+                  <label for="section1" class="text-sm text-gray-700">1</label>
+                </div>
+                <div class="flex items-center">
+                  <input type="radio" id="section2" value="2" v-model="formData.section" class="mr-2">
+                  <label for="section2" class="text-sm text-gray-700">2</label>
+                </div>
+              </div>
             </div>
 
             <div class="flex justify-end space-x-3 pt-4">
