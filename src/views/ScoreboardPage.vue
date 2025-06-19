@@ -386,7 +386,7 @@ async function logout() {
 <template>
   <div class="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 text-gray-800">
     <!-- Header -->
-    <header class="bg-white shadow-lg sticky top-0 z-50">
+    <header class="bg-white shadow-lg ">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center py-6">
           <router-link to="/admin" class="flex-shrink-0 block">

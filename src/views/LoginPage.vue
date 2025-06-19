@@ -99,7 +99,7 @@ const router = useRouter()
 const email = ref('')
 const password = ref('')
 
-const allowedEmails = ['suthinan.l@kkumail.com', 's@gmail.com']
+const allowedEmails = ['suthinan.l@kkumail.com', 's@gmail.com','phattiyaphorn.k@kkumail.com','patiphan.k@kkumail.com']
 
 const loginWithEmail = async () => {
   if (!email.value || !password.value) {
