@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore'
 
 const props = defineProps({
-  sessionId: String // Expecting sessionId as a prop from router
+  sessionId: String
 })
 
 const route = useRoute()
@@ -27,7 +27,6 @@ const loading = ref(true)
 const error = ref(null)
 let unsubscribe = null
 
-// Function to format timestamp for display
 function formatTimestamp(timestamp) {
   if (!timestamp) return ''
   const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp)
@@ -38,6 +37,27 @@ function formatTimestamp(timestamp) {
     month: 'short',
     year: 'numeric',
   })
+}
+
+function getAttendanceStatusText(attendee) {
+  if (typeof attendee.score === 'undefined') {
+    return { text: 'N/A', class: 'text-gray-500' }
+  }
+
+  let statusText = `${attendee.score} คะแนน`
+  let cssClass = attendee.score === 1 ? 'text-green-600' : 'text-orange-600' // orange for 0.5
+
+  // Based on the logic in CheckClassView:
+  // score 1 means status 'on-time'
+  // score 0.5 means status 'late'
+  if (attendee.status === 'on-time' || attendee.score === 1) {
+    statusText += ' (มาทันเวลา)'
+  } else if (attendee.status === 'late' || attendee.score === 0.5) {
+    statusText += ' (มาสาย)'
+  }
+  // Removed 'late-round' and its fallback, as it's no longer a separate concept.
+
+  return { text: statusText, class: cssClass }
 }
 
 async function fetchSessionAndAttendance() {
@@ -51,7 +71,6 @@ async function fetchSessionAndAttendance() {
     return
   }
 
-  // 1. ดึงข้อมูลเซสชัน
   try {
     const sessionDoc = await getDoc(doc(db, 'attendance_sessions', currentSessionId))
     if (sessionDoc.exists()) {
@@ -68,7 +87,6 @@ async function fetchSessionAndAttendance() {
     return
   }
 
-  // 2. ฟังการเปลี่ยนแปลงของ attendance_records (Real-time listener)
   if (unsubscribe) {
     unsubscribe()
   }
@@ -85,23 +103,31 @@ async function fetchSessionAndAttendance() {
       ...doc.data()
     }))
 
-    // ดึงชื่อนักศึกษาจาก collection 'students' หากยังไม่มีใน record
-    const attendeesWithNames = await Promise.all(records.map(async (rec) => {
+    const attendeesWithDetails = await Promise.all(records.map(async (rec) => {
       let name = rec.name || ''
-      if (!name && rec.studentId) {
+      let major = rec.major || ''
+      if (!name || !major) {
         try {
           const stuRef = doc(db, 'students', rec.studentId)
           const stuSnap = await getDoc(stuRef)
           if (stuSnap.exists()) {
-            name = stuSnap.data().name
+            const studentData = stuSnap.data()
+            name = name || studentData.name || 'ไม่พบชื่อนักเรียน'
+            major = major || studentData.major || 'ไม่พบสาขา'
+          } else {
+            name = name || 'ไม่พบชื่อนักเรียน'
+            major = major || 'ไม่พบสาขา'
           }
         } catch (e) {
-          console.warn('Could not fetch student name for ID:', rec.studentId, e)
+          console.warn('Could not fetch student details for ID:', rec.studentId, e)
+          name = name || 'Error fetching name'
+          major = major || 'Error fetching major'
         }
       }
-      return { ...rec, name }
+      const attendanceDisplay = getAttendanceStatusText(rec)
+      return { ...rec, name, major, attendanceDisplay }
     }))
-    attendees.value = attendeesWithNames
+    attendees.value = attendeesWithDetails
     loading.value = false
   }, (e) => {
     console.error('Error listening to attendance records:', e)
@@ -120,95 +146,147 @@ onBeforeUnmount(() => {
   }
 })
 
-watch(() => props.sessionId, (newSessionId, oldSessionId) => {
-  if (newSessionId && newSessionId !== oldSessionId) {
+watch(() => props.sessionId, (newSessionId) => {
+  if (newSessionId) {
     fetchSessionAndAttendance()
   }
-})
+}, { immediate: !route.params.sessionId })
+
+watch(() => route.params.sessionId, (newSessionId) => {
+  if (newSessionId && newSessionId !== (sessionInfo.value ? sessionInfo.value.id : null)) {
+    fetchSessionAndAttendance()
+  }
+}, { immediate: !props.sessionId })
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
-    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+  <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8">
+    <div class="max-w-5xl mx-auto bg-white rounded-xl shadow-2xl p-6 md:p-8">
       <!-- Header -->
-      <div class="mb-6 flex justify-between items-center">
-        <h1 class="text-2xl font-bold text-gray-800">รายละเอียดการเช็คชื่อ</h1>
-        <button
-          @click="router.back()"
-          class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-        >
+      <div class="mb-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-800">รายละเอียดการเช็คชื่อ</h1>
+          <p v-if="sessionInfo" class="text-gray-600">เซสชัน: <span class="font-semibold">{{ sessionInfo.week ? `สัปดาห์ที่ ${sessionInfo.week}` : `เซสชัน (${formatTimestamp(sessionInfo.createdAt)})` }}</span>
+          </p>
+        </div>
+        <button @click="router.back()"
+          class="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg text-sm font-medium">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-1 -mt-0.5" viewBox="0 0 20 20"
+            fill="currentColor">
+            <path fill-rule="evenodd"
+              d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
+              clip-rule="evenodd" />
+          </svg>
           กลับ
         </button>
       </div>
 
-      <!-- Loading State -->
-      <div v-if="loading" class="text-center py-10">
-        <p class="text-gray-600">กำลังโหลดข้อมูล...</p>
+      <div v-if="loading" class="text-center py-12">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <p class="text-gray-600 mt-4 text-lg">กำลังโหลดข้อมูลเซสชัน...</p>
       </div>
 
-      <!-- Error State -->
-      <div v-else-if="error" class="text-center py-10 text-red-600">
-        <p>{{ error }}</p>
+      <div v-else-if="error" class="text-center py-12">
+        <div class="bg-red-50 p-6 rounded-lg inline-block">
+          <svg class="w-12 h-12 text-red-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <p class="text-red-700 text-xl font-medium">{{ error }}</p>
+          <p class="text-red-600 mt-1">กรุณาลองใหม่อีกครั้ง หรือติดต่อผู้ดูแลระบบ</p>
+        </div>
       </div>
 
-      <!-- Content -->
-      <div v-else>
-        <!-- Session Information -->
-        <div class="mb-6 p-4 bg-blue-50 rounded-lg">
-          <h2 class="text-xl font-semibold text-blue-800 mb-2">ข้อมูลเซสชัน</h2>
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div v-else-if="sessionInfo">
+        <div class="mb-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-100 rounded-xl shadow-lg">
+          <h2 class="text-2xl font-semibold text-blue-800 mb-4">ข้อมูลเซสชัน</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-sm">
             <div>
-              <p class="text-gray-600"><strong>รหัสเซสชัน:</strong> {{ sessionInfo.id }}</p>
-              <p class="text-gray-600"><strong>วันที่:</strong> {{ formatTimestamp(sessionInfo.createdAt) }}</p>
+              <p class="text-gray-500">ID เซสชัน:</p>
+              <p class="text-gray-800 font-medium break-all">{{ sessionInfo.id }}</p>
             </div>
             <div>
-              <p class="text-gray-600"><strong>สถานะ:</strong> {{ sessionInfo.isActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน' }}</p>
-              <p class="text-gray-600"><strong>จำนวนผู้เข้าร่วม:</strong> {{ attendees.length }} คน</p>
+              <p class="text-gray-500">สร้างโดย:</p>
+              <p class="text-gray-800 font-medium">{{ sessionInfo.createdBy }}</p>
+            </div>
+            <div>
+              <p class="text-gray-500">วันที่สร้าง:</p>
+              <p class="text-gray-800 font-medium">{{ formatTimestamp(sessionInfo.createdAt) }}</p>
+            </div>
+            <div>
+              <p class="text-gray-500">สถานะ:</p>
+              <p class="font-medium" :class="sessionInfo.isActive ? 'text-green-600' : 'text-red-600'">
+                {{ sessionInfo.isActive ? 'เปิดใช้งานอยู่' : 'ปิดใช้งานแล้ว' }}
+              </p>
+            </div>
+            <div>
+              <p class="text-gray-500">ระยะเวลาทั้งหมด:</p>
+              <p class="text-gray-800 font-medium">{{ sessionInfo.duration ? (sessionInfo.duration / 60) + ' นาที' :
+                'N/A' }}</p>
+            </div>
+            <div v-if="sessionInfo.onTimeDurationSeconds">
+              <p class="text-gray-500">เวลาสำหรับคะแนนเต็ม:</p>
+              <p class="text-gray-800 font-medium">{{ sessionInfo.onTimeDurationSeconds / 60 }} นาที</p>
+            </div>
+            <div>
+              <p class="text-gray-500">จำนวนผู้เข้าร่วม:</p>
+              <p class="text-gray-800 font-semibold text-lg">{{ attendees.length }} คน</p>
             </div>
           </div>
         </div>
 
-        <!-- Attendees List -->
         <div>
-          <h2 class="text-xl font-semibold text-gray-800 mb-4">รายชื่อผู้เข้าร่วม</h2>
-          <div v-if="attendees.length === 0" class="text-center py-6 text-gray-500">
-            <p>ยังไม่มีผู้เข้าร่วมในเซสชันนี้</p>
+          <h2 class="text-2xl font-semibold text-gray-800 mb-6">รายชื่อผู้เข้าร่วม</h2>
+          <div v-if="attendees.length === 0" class="text-center py-10 text-gray-500 bg-gray-50 rounded-lg">
+            <svg class="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <p class="text-lg">ยังไม่มีผู้เข้าร่วมในเซสชันนี้</p>
           </div>
-          <div v-else class="overflow-x-auto">
+          <div v-else class="overflow-x-auto bg-white rounded-lg shadow-md">
             <table class="w-full text-left border-collapse">
-              <thead>
-                <tr class="bg-gray-100">
-                  <th class="p-3 text-sm font-semibold text-gray-700">ลำดับ</th>
-                  <th class="p-3 text-sm font-semibold text-gray-700">รหัสนักศึกษา</th>
-                  <th class="p-3 text-sm font-semibold text-gray-700">ชื่อ</th>
-                  <th class="p-3 text-sm font-semibold text-gray-700">เวลาที่เช็คชื่อ</th>
+              <thead class="bg-gray-100">
+                <tr>
+                  <th class="p-3 text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">#</th>
+                  <th class="p-3 text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">รหัสนักศึกษา
+                  </th>
+                  <th class="p-3 text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">ชื่อ-สกุล</th>
+                  <th class="p-3 text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">สาขา</th>
+                  <th class="p-3 text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">
+                    เวลาที่เช็คชื่อ</th>
+                  <th class="p-3 text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">คะแนน/สถานะ
+                  </th>
                 </tr>
               </thead>
-              <tbody>
-                <tr
-                  v-for="(attendee, index) in attendees"
-                  :key="attendee.id"
-                  class="border-b hover:bg-gray-50"
-                >
-                  <td class="p-3 text-gray-700">{{ index + 1 }}</td>
-                  <td class="p-3 text-gray-700">{{ attendee.studentId || '-' }}</td>
-                  <td class="p-3 text-gray-700">{{ attendee.name || 'ไม่พบชื่อ' }}</td>
-                  <td class="p-3 text-gray-700">{{ formatTimestamp(attendee.timestamp) }}</td>
+              <tbody class="divide-y divide-gray-200">
+                <tr v-for="(attendee, index) in attendees" :key="attendee.id"
+                  class="hover:bg-gray-50 transition-colors duration-150" :class="{
+                    'bg-orange-50 hover:bg-orange-100': attendee.score === 0.5, // Orange for late
+                    'bg-green-50 hover:bg-green-100': attendee.score === 1    // Green for on-time
+                  }">
+                  <td class="p-3 text-sm text-gray-700">{{ index + 1 }}</td>
+                  <td class="p-3 text-sm text-gray-700 font-medium">{{ attendee.studentId || '-' }}</td>
+                  <td class="p-3 text-sm text-gray-800">{{ attendee.name || 'ไม่พบชื่อ' }}</td>
+                  <td class="p-3 text-sm text-gray-800">{{ attendee.major || 'ไม่พบสาขา' }}</td>
+                  <td class="p-3 text-sm text-gray-600">{{ formatTimestamp(attendee.checkedAt || attendee.timestamp) }}
+                  </td>
+                  <td class="p-3 text-sm font-semibold" :class="attendee.attendanceDisplay.class">
+                    {{ attendee.attendanceDisplay.text }}
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
       </div>
+      <div v-else-if="!loading && !error" class="text-center py-10 text-gray-500">
+        <p>ไม่พบข้อมูลสำหรับเซสชันนี้</p>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-table {
-  border-spacing: 0;
-}
-th, td {
-  border-bottom: 1px solid #e2e8f0;
-}
-</style> เขียนในนี้ด้วยว่ามาสาย
+/* Optional styles can go here */
+</style>

@@ -240,26 +240,7 @@ function goToScoreboard() {
         </div>
       </div>
 
-      <!-- Quick Stats Section -->
-      <div class="mt-16">
-        <h3 class="text-2xl font-bold text-gray-800 mb-8 text-center">
-          สถิติการเข้าเรียน
-        </h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div class="bg-white rounded-lg shadow-md p-6 text-center">
-            <div class="text-3xl font-bold text-blue-600 mb-2">25</div>
-            <div class="text-gray-600">นักศึกษาทั้งหมด</div>
-          </div>
-          <div class="bg-white rounded-lg shadow-md p-6 text-center">
-            <div class="text-3xl font-bold text-green-600 mb-2">87%</div>
-            <div class="text-gray-600">อัตราการเข้าเรียนเฉลี่ย</div>
-          </div>
-          <div class="bg-white rounded-lg shadow-md p-6 text-center">
-            <div class="text-3xl font-bold text-orange-600 mb-2">2%</div>
-            <div class="text-gray-600">อัตราการขาด ลา มาสาย</div>
-          </div>
-        </div>
-      </div>
+    
 
       <!-- Recent Activities -->
       <div class="mt-16">
@@ -281,7 +262,9 @@ function goToScoreboard() {
                   <!-- วงกลมสถานะ (เขียว = Active, เทา = Inactive) -->
                   <div class="w-3 h-3 rounded-full mr-3"
                     :class="{ 'bg-green-500': session.isActive, 'bg-gray-400': !session.isActive }"></div>
-                  <span class="text-gray-700 font-medium">{{ session.name }}</span>
+                  <span class="text-gray-700 font-medium">
+                    {{ session.week ? `สัปดาห์ที่ ${session.week}` : `เซสชัน (${formatTimestamp(session.createdAt)})` }}
+                  </span>
                   <span v-if="!session.isActive"
                     class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">
                     สิ้นสุดแล้ว
@@ -300,7 +283,7 @@ function goToScoreboard() {
           </div>
         </div>
       </div>
-<br>
+      <br>
       <footer class="text-center py-4 text-xs text-gray-500">
         &copy; {{ new Date().getFullYear() }} CP352201 & SC362201 Web Design Technologies
       </footer>

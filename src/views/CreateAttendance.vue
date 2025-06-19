@@ -1,5 +1,3 @@
-<!-- eslint-disable no-unused-vars -->
-
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
@@ -25,12 +23,13 @@ import QRCodeVue from 'qrcode.vue'
 
 const router = useRouter()
 const userEmail = ref('')
-const sessionName = ref('')
 const sessionStarted = ref(false)
 const sessionId = ref(null)
 const db = getFirestore()
 
-const durationMinutes = ref(5)
+const durationMinutes = ref(30) // ระยะเวลาเซสชันทั้งหมด
+const onTimeDurationMinutes = ref(15) // ระยะเวลาสำหรับคะแนนเต็ม (นาที)
+const weekNumber = ref('') // หมายเลขสัปดาห์
 const countdown = ref(0)
 let timer = null
 
@@ -38,9 +37,6 @@ const attendeesList = ref([])
 let unsubscribe = null
 
 const sidebarVisible = ref(false)
-
-// เพิ่มตรงนี้สำหรับรอบสาย
-const lateSession = ref(false)
 
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0')
@@ -68,15 +64,13 @@ function closeSidebar() {
   sidebarVisible.value = false
 }
 
-
-
 async function checkActiveSession() {
   try {
     const q = query(
       collection(db, 'attendance_sessions'),
       where('createdBy', '==', userEmail.value),
       where('isActive', '==', true),
-      limit(10)
+      limit(10) // จำกัดการดึงข้อมูล
     )
     const querySnapshot = await getDocs(q)
     if (!querySnapshot.empty) {
@@ -90,22 +84,25 @@ async function checkActiveSession() {
           latestSession = { id: docSnapshot.id, ...data }
         }
       })
+
       if (latestSession) {
         const createdAt = latestSession.createdAt?.toDate() || new Date()
         const now = new Date()
         const elapsedSeconds = Math.floor((now - createdAt) / 1000)
         const remainingSeconds = latestSession.duration - elapsedSeconds
+
         if (remainingSeconds > 0) {
           sessionId.value = latestSession.id
-          sessionName.value = latestSession.name
           sessionStarted.value = true
           durationMinutes.value = Math.ceil(latestSession.duration / 60)
+          if (latestSession.onTimeDurationSeconds) {
+            onTimeDurationMinutes.value = Math.ceil(latestSession.onTimeDurationSeconds / 60)
+          }
           countdown.value = remainingSeconds
-          lateSession.value = !!latestSession.isLateRound
           startCountdown()
           Swal.fire({
             title: 'กู้คืนเซสชันสำเร็จ',
-            text: `กำลังดำเนินการเช็คชื่อ "${latestSession.name}"`,
+            text: `กำลังดำเนินการเช็คชื่อสำหรับสัปดาห์ที่ ${latestSession.week || 'ไม่ระบุ'}`,
             icon: 'info',
             timer: 3000,
             showConfirmButton: false
@@ -114,12 +111,12 @@ async function checkActiveSession() {
           await updateDoc(doc(db, 'attendance_sessions', latestSession.id), {
             isActive: false
           })
-          lateSession.value = false
         }
       }
     }
-    // eslint-disable-next-line no-empty
-  } catch (error) { }
+  } catch (error) {
+    console.error("Error checking active session:", error)
+  }
 }
 
 function startCountdown() {
@@ -141,7 +138,6 @@ function startCountdown() {
         icon: 'info',
         confirmButtonText: 'ตกลง'
       })
-      lateSession.value = false
     }
   }, 1000)
 }
@@ -164,7 +160,6 @@ async function stopSession() {
         isActive: false
       })
     }
-    lateSession.value = false
     await Swal.fire({
       title: 'หยุดการเช็คชื่อเรียบร้อยแล้ว',
       icon: 'success',
@@ -192,13 +187,15 @@ onBeforeUnmount(() => {
   }
 })
 
-watch(sessionId, (newVal, oldVal) => {
+watch(sessionId, (newVal) => {
   if (unsubscribe) {
     unsubscribe()
     unsubscribe = null
   }
   if (newVal) {
     listenToAttendance()
+  } else {
+    attendeesList.value = [] // Clear list when session stops
   }
 })
 
@@ -239,9 +236,11 @@ function listenToAttendance() {
           if (stuSnap.exists()) {
             name = stuSnap.data().name
           }
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+          console.warn("Could not fetch student name for", rec.studentId, e)
+        }
       }
-      return { ...rec, name }
+      return { ...rec, name, score: rec.score, status: rec.status }
     }))
     attendeesList.value = withName
   }, (error) => {
@@ -249,25 +248,28 @@ function listenToAttendance() {
   })
 }
 
-// ฟังก์ชัน "เช็คชื่อปกติ"
 async function startSession() {
-  if (sessionName.value.trim() === '') {
-    Swal.fire('กรุณากรอกชื่อเซสชันก่อนเริ่ม', '', 'warning')
-    return
-  }
   if (durationMinutes.value <= 0) {
-    Swal.fire('กรุณากรอกเวลาที่ถูกต้อง', '', 'warning')
+    Swal.fire('กรุณากรอกระยะเวลาเซสชันทั้งหมดที่ถูกต้อง', '', 'warning')
     return
   }
+  if (onTimeDurationMinutes.value <= 0 || onTimeDurationMinutes.value > durationMinutes.value) {
+    Swal.fire('กรุณากรอกระยะเวลาสำหรับคะแนนเต็มที่ถูกต้อง (ต้องไม่เกินระยะเวลาเซสชันทั้งหมด)', '', 'warning')
+    return
+  }
+  if (weekNumber.value.trim() === '') {
+    Swal.fire('กรุณากรอกหมายเลขสัปดาห์', '', 'warning')
+    return
+  }
+
   try {
-    lateSession.value = false
     const docRef = await addDoc(collection(db, 'attendance_sessions'), {
-      name: sessionName.value.trim(),
       createdAt: serverTimestamp(),
       createdBy: userEmail.value,
       isActive: true,
-      duration: durationMinutes.value * 60,
-      isLateRound: false
+      duration: durationMinutes.value * 60, // ระยะเวลาเซสชันทั้งหมด (วินาที)
+      onTimeDurationSeconds: onTimeDurationMinutes.value * 60, // ระยะเวลาสำหรับคะแนนเต็ม (วินาที)
+      week: weekNumber.value.trim() // บันทึกหมายเลขสัปดาห์
     })
     sessionId.value = docRef.id
     sessionStarted.value = true
@@ -275,7 +277,7 @@ async function startSession() {
     startCountdown()
     Swal.fire({
       title: 'เริ่มเซสชันการเช็คชื่อเรียบร้อยแล้ว',
-      text: `เซสชัน "${sessionName.value}" กำลังดำเนินการ`,
+      text: `เซสชันสำหรับสัปดาห์ที่ ${weekNumber.value} กำลังดำเนินการ`,
       icon: 'success',
       timer: 2000,
       showConfirmButton: false
@@ -284,12 +286,10 @@ async function startSession() {
     Swal.fire('เกิดข้อผิดพลาดในการสร้างเซสชัน', error.message, 'error')
   }
 }
-
-
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+  <div class="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
     <!-- Header -->
     <header class="bg-white shadow-lg relative z-10">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -303,6 +303,7 @@ async function startSession() {
               <span class="text-sm">สวัสดี, </span>
               <span class="font-semibold">{{ userEmail }}</span>
             </div>
+            
             <button @click="logout"
               class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300 font-medium text-sm">
               ออกจากระบบ
@@ -312,6 +313,7 @@ async function startSession() {
       </div>
     </header>
 
+    
     <!-- Main Content -->
     <main class="max-w-6xl mx-auto p-8 relative">
       <div class="text-center mb-8">
@@ -322,46 +324,43 @@ async function startSession() {
       <!-- Create Session Card -->
       <div class="bg-white rounded-2xl shadow-xl p-8 mb-8">
         <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-          {{ sessionStarted
-            ? lateSession
-              ? 'เซสชันปัจจุบัน (รอบคนมาสาย)'
-              : 'เซสชันปัจจุบัน'
-            : 'สร้างการเช็คชื่อใหม่' }}
+          {{ sessionStarted ? 'เซสชันปัจจุบัน' : 'สร้างการเช็คชื่อใหม่' }}
         </h3>
 
-        <div v-if="!sessionStarted" class="grid md:grid-cols-2 gap-6 mb-6">
+        <div v-if="!sessionStarted" class="grid md:grid-cols-3 gap-6 mb-6">
           <div>
-            <label class="block text-gray-700 font-semibold mb-3">ชื่อการเช็คชื่อ</label>
-            <input v-model="sessionName" type="text"
-              class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-              placeholder="เช่น การบรรยายสัปดาห์ที่ 5" />
-          </div>
-          <div>
-            <label class="block text-gray-700 font-semibold mb-3">ระยะเวลา (นาที)</label>
+            <label class="block text-gray-700 font-semibold mb-3">ระยะเวลาทั้งหมด (นาที)</label>
             <input v-model.number="durationMinutes" type="number" min="1"
               class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all" />
           </div>
+          <div>
+            <label class="block text-gray-700 font-semibold mb-3">เวลาสำหรับคะแนนเต็ม (นาที)</label>
+            <input v-model.number="onTimeDurationMinutes" type="number" min="1"
+              class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+              placeholder="เช่น 15" />
+          </div>
+          <div>
+            <label class="block text-gray-700 font-semibold mb-3">สัปดาห์ที่</label>
+            <input v-model="weekNumber" type="text"
+              class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+              placeholder="เช่น 1, 2, 3" />
+          </div>
         </div>
-
 
         <div v-if="!sessionStarted">
           <button @click="startSession"
             class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-8 py-3 rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1 font-semibold">
             เริ่มเช็คชื่อ
           </button>
-         
         </div>
+
         <!-- Session Info when active -->
         <div v-if="sessionStarted"
           class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-6">
           <div class="flex items-center justify-between mb-4">
             <div>
-              <h4 class="text-xl font-bold text-gray-800">"{{ sessionName }}{{ lateSession ? ' (รอบคนมาสาย)' : '' }}"
-              </h4>
+              <h4 class="text-xl font-bold text-gray-800">เซสชันการเช็คชื่อ</h4>
               <p class="text-gray-600">Session ID: {{ sessionId }}</p>
-              <p v-if="lateSession" class="text-orange-600 font-bold text-xs mt-1">
-                รอบคนมาสาย: ผู้เช็คชื่อจะได้ 0.5 คะแนน
-              </p>
             </div>
             <div class="text-right">
               <div class="text-2xl font-bold text-blue-600">{{ formatTime(countdown) }}</div>
@@ -374,7 +373,6 @@ async function startSession() {
               class="bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-lg hover:from-red-600 hover:to-red-700 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 font-semibold text-sm">
               หยุดเซสชัน
             </button>
-
             <div class="text-sm text-gray-600 flex items-center">
               <svg class="w-4 h-4 mr-1 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -447,7 +445,7 @@ async function startSession() {
           <div class="flex items-center justify-between mt-3">
             <span class="text-sm text-green-100">ทั้งหมด {{ attendeesList.length }} คน</span>
             <span class="bg-white bg-opacity-20 px-3 py-1 rounded-full text-xs font-semibold">
-              {{ sessionStarted ? (lateSession ? 'รอบคนมาสาย' : 'กำลังเช็คชื่อ') : 'รอเริ่มต้น' }}
+              {{ sessionStarted ? 'กำลังเช็คชื่อ' : 'รอเริ่มต้น' }}
             </span>
           </div>
         </div>
@@ -457,7 +455,7 @@ async function startSession() {
             <div class="bg-gray-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
               <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 919.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
             </div>
             <p class="text-gray-600 text-lg font-medium">ยังไม่มีผู้เข้าร่วม</p>
@@ -466,15 +464,21 @@ async function startSession() {
 
           <div v-else class="p-4 space-y-3">
             <div v-for="(attendee, index) in attendeesList" :key="attendee.id"
-              class="rounded-xl p-4 border transition-all duration-200" :class="[attendee.status === 'late' || attendee.score === 0.5
-                ? 'bg-orange-50 border-orange-300'
-                : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200',
-                'hover:shadow-md'
+              class="rounded-xl p-4 border transition-all duration-200 hover:shadow-md"
+              :class="[
+                attendee.status === 'late' || attendee.score === 0.5
+                  ? 'bg-orange-50 border-orange-300'
+                  : (attendee.status === 'on-time' || attendee.score === 1
+                    ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
+                    : 'bg-gray-50 border-gray-200')
               ]">
               <div class="flex items-center">
-                <div class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold" :class="attendee.status === 'late' || attendee.score === 0.5
-                  ? 'bg-orange-400'
-                  : 'bg-gradient-to-br from-green-400 to-emerald-500'">
+                <div class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold"
+                  :class="attendee.status === 'late' || attendee.score === 0.5
+                    ? 'bg-orange-400'
+                    : (attendee.status === 'on-time' || attendee.score === 1
+                      ? 'bg-gradient-to-br from-green-400 to-emerald-500'
+                      : 'bg-gray-400')">
                   {{ index + 1 }}
                 </div>
                 <div class="ml-4 flex-1">
@@ -484,17 +488,22 @@ async function startSession() {
                       class="text-orange-500 text-xs font-bold ml-2">
                       (มาสาย)
                     </span>
+                    <span v-else-if="attendee.status === 'on-time' || attendee.score === 1"
+                      class="text-green-600 text-xs font-bold ml-2">
+                      (ทันเวลา)
+                    </span>
                   </p>
                   <p class="text-sm text-gray-600">{{ attendee.studentId || 'ไม่ระบุรหัส' }}</p>
                   <div class="flex items-center mt-1">
                     <svg class="w-3 h-3"
-                      :class="attendee.status === 'late' || attendee.score === 0.5 ? 'text-orange-500' : 'text-green-500'"
+                      :class="attendee.status === 'late' || attendee.score === 0.5 ? 'text-orange-500' : (attendee.status === 'on-time' || attendee.score === 1 ? 'text-green-500' : 'text-gray-500')"
                       fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>
-                    <span class="text-xs font-medium"
-                      :class="attendee.status === 'late' || attendee.score === 0.5 ? 'text-orange-600' : 'text-green-600'">
-                      {{ formatTimestamp(attendee.timestamp) || 'ไม่ได้เช็คชื่อ' }}
+                    <span class="text-xs font-medium ml-1"
+                      :class="attendee.status === 'late' || attendee.score === 0.5 ? 'text-orange-600' : (attendee.status === 'on-time' || attendee.score === 1 ? 'text-green-600' : 'text-gray-600')">
+                      {{ formatTimestamp(attendee.timestamp || attendee.checkedAt) || 'ไม่ได้เช็คชื่อ' }}
+                      <span v-if="typeof attendee.score !== 'undefined'"> - {{ attendee.score }} คะแนน</span>
                     </span>
                   </div>
                 </div>
@@ -504,6 +513,5 @@ async function startSession() {
         </div>
       </div>
     </div>
-
   </div>
 </template>
