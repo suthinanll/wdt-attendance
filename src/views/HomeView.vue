@@ -1,28 +1,30 @@
-<!-- src/views/HomeView.vue -->
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Swal from 'sweetalert2'
 
-import { auth } from '../firebase.js'
+import { auth, db } from '../firebase.js' // ตรวจสอบว่า db ถูก export จาก firebase.js
 import { onAuthStateChanged } from 'firebase/auth'
 
-// เพิ่ม Firestore imports
+// เพิ่ม Firestore imports ที่จำเป็นสำหรับการลบ
 import {
-  getFirestore,
   collection,
   query,
   orderBy,
-  getDocs
+  getDocs,
+  doc,        // สำหรับอ้างอิง document
+  writeBatch, // สำหรับการลบหลาย document ใน transaction เดียว
+  where       // สำหรับ query เงื่อนไข
 } from 'firebase/firestore'
 
 
 const router = useRouter()
 const userEmail = ref('')
-const db = getFirestore() // Initialize Firestore
 
-// เพิ่ม ref สำหรับเก็บประวัติการเช็คชื่อ
+// เพิ่ม ref สำหรับเก็บประวัติการเช็คชื่อ และสถานะการโหลด/การลบ
 const recentSessions = ref([])
+const isLoadingSessions = ref(false) // สถานะกำลังโหลดประวัติ
+const isDeletingSession = ref(null)  // ID ของ session ที่กำลังลบ
 
 // ฟังก์ชันสำหรับ format วันที่และเวลา
 function formatTimestamp(timestamp) {
@@ -45,6 +47,8 @@ function formatTimeAgo(timestamp) {
   const now = new Date()
   const seconds = Math.floor((now - date) / 1000)
 
+  if (seconds < 0) return 'ในอนาคต' // กรณีเวลาไม่ถูกต้อง
+  if (seconds < 5) return 'เมื่อสักครู่'
   if (seconds < 60) return `${seconds} วินาทีที่แล้ว`
   const minutes = Math.floor(seconds / 60)
   if (minutes < 60) return `${minutes} นาทีที่แล้ว`
@@ -54,35 +58,95 @@ function formatTimeAgo(timestamp) {
   if (days < 7) return `${days} วันที่แล้ว`
   const weeks = Math.floor(days / 7)
   if (weeks < 4) return `${weeks} สัปดาห์ที่แล้ว`
-  const months = Math.floor(days / 30)
+  const months = Math.floor(days / 30) // โดยประมาณ
   if (months < 12) return `${months} เดือนที่แล้ว`
-  const years = Math.floor(days / 365)
+  const years = Math.floor(days / 365) // โดยประมาณ
   return `${years} ปีที่แล้ว`
 }
 
-// ฟังก์ชันดึงประวัติการเช็คชื่อล่าสุด
+// ฟังก์ชันดึงประวัติการเช็คชื่อ
 async function fetchRecentSessions() {
+  isLoadingSessions.value = true
+  recentSessions.value = [] // Clear old data before fetching
   try {
     const q = query(
       collection(db, 'attendance_sessions'),
-      orderBy('createdAt', 'desc') // ดึงทั้งหมด เรียงจากใหม่ → เก่า
+      orderBy('createdAt', 'desc')
     );
     const querySnapshot = await getDocs(q);
     recentSessions.value = querySnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
-    console.log('Fetched ALL sessions:', recentSessions.value);
+    // console.log('Fetched sessions:', recentSessions.value);
   } catch (error) {
-    console.error('Error fetching all sessions:', error);
+    console.error('Error fetching sessions:', error);
+    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถโหลดประวัติการเช็คชื่อได้', 'error')
+  } finally {
+    isLoadingSessions.value = false
   }
 }
 
 // ฟังก์ชันนำทางไปยังหน้ารายละเอียดการเช็คชื่อของแต่ละเซสชัน
 function viewSessionAttendance(sessionId) {
-  // คุณจะต้องสร้าง route ใน src/router/index.js ที่รองรับ path นี้
-  // เช่น path: '/admin/attendance-details/:sessionId'
-  router.push(`/admin/attendance-details/${sessionId}`);
+  router.push(`/admin/attendance-details/${sessionId}`); // ตรวจสอบ path ให้ตรงกับ router ของคุณ
+}
+
+// ฟังก์ชันยืนยันการลบเซสชัน
+async function confirmDeleteSession(session) {
+  const sessionName = session.week ? `สัปดาห์ที่ ${session.week}` : `เซสชัน (${formatTimestamp(session.createdAt)})`;
+
+  const result = await Swal.fire({
+    title: 'ยืนยันการลบเซสชัน?',
+    html: `คุณต้องการลบเซสชัน <strong>"${sessionName}"</strong> ใช่หรือไม่?<br><strong class="text-red-600">การกระทำนี้จะลบข้อมูลการเช็คชื่อทั้งหมดที่เกี่ยวข้องกับเซสชันนี้ และไม่สามารถกู้คืนได้!</strong>`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonText: 'ใช่, ลบเลย',
+    cancelButtonText: 'ยกเลิก',
+    confirmButtonColor: '#e53e3e',
+    cancelButtonColor: '#718096',
+    reverseButtons: true
+  });
+
+  if (result.isConfirmed) {
+    await deleteSessionAndRecords(session.id);
+  }
+}
+
+// ฟังก์ชันลบเซสชันและข้อมูลการเช็คชื่อที่เกี่ยวข้อง
+async function deleteSessionAndRecords(sessionId) {
+  isDeletingSession.value = sessionId;
+  try {
+    const batch = writeBatch(db);
+
+    // 1. เตรียมลบ session document
+    const sessionRef = doc(db, 'attendance_sessions', sessionId);
+    batch.delete(sessionRef);
+
+    // 2. เตรียมลบ attendance records ที่เกี่ยวข้อง (สมมติว่า collection คือ 'attendance_records')
+    // และมี field 'sessionId' ชี้กลับมาที่ session
+    const recordsQuery = query(collection(db, 'attendance_records'), where('sessionId', '==', sessionId));
+    const recordsSnapshot = await getDocs(recordsQuery);
+    recordsSnapshot.forEach(recordDoc => {
+      batch.delete(recordDoc.ref);
+    });
+
+    // 3. Commit การลบทั้งหมด
+    await batch.commit();
+
+    Swal.fire('สำเร็จ!', 'ลบเซสชันและข้อมูลการเช็คชื่อที่เกี่ยวข้องเรียบร้อยแล้ว', 'success');
+
+    // อัปเดต UI โดยการกรอง session ที่ถูกลบออกจาก list
+    recentSessions.value = recentSessions.value.filter(s => s.id !== sessionId);
+    // หรือถ้าต้องการความสดใหม่เสมอ ก็เรียก fetchRecentSessions() อีกครั้ง
+    // await fetchRecentSessions();
+
+  } catch (error) {
+    console.error('Error deleting session and related records:', error);
+    Swal.fire('เกิดข้อผิดพลาด', `ไม่สามารถลบเซสชันได้: ${error.message}`, 'error');
+  } finally {
+    isDeletingSession.value = null; // เคลียร์สถานะการลบ
+  }
 }
 
 
@@ -91,7 +155,6 @@ onMounted(() => {
   onAuthStateChanged(auth, (user) => {
     if (user) {
       userEmail.value = user.email
-      // เรียกใช้ฟังก์ชันดึงประวัติการเช็คชื่อเมื่อ userEmail พร้อม
       fetchRecentSessions();
     } else {
       router.push('/')
@@ -142,12 +205,8 @@ function goToScoreboard() {
         <div class="flex justify-between items-center py-6">
           <div class="flex items-center">
             <router-link to="/admin" class="flex-shrink-0 block">
-              <h1 class="text-3xl font-bold text-green-700">
-                ระบบเช็คชื่อและให้คะแนน
-              </h1>
-              <h1 class="text-xl text-gray-500">
-                CP352201 & SC362201 Web Design Technologies
-              </h1>
+              <h1 class="text-2xl font-bold text-green-600">ระบบเช็คชื่อและให้คะแนน</h1>
+              <h1 class=" text-gray-500">CP352201 & SC362201 Web Design Technologies</h1>
             </router-link>
 
           </div>
@@ -240,7 +299,7 @@ function goToScoreboard() {
         </div>
       </div>
 
-    
+
 
       <!-- Recent Activities -->
       <div class="mt-16">
@@ -249,40 +308,85 @@ function goToScoreboard() {
         </h3>
         <div class="bg-white rounded-xl shadow-lg p-6">
           <div class="space-y-4">
+            <!-- แสดงข้อความเมื่อกำลังโหลด -->
+            <div v-if="isLoadingSessions" class="text-center text-gray-500 py-10">
+              <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              <p class="mt-2">กำลังโหลดประวัติการเช็คชื่อ...</p>
+            </div>
+
             <!-- แสดงข้อความเมื่อไม่มีประวัติ -->
-            <p v-if="recentSessions.length === 0" class="text-center text-gray-500 py-4">
-              ยังไม่มีประวัติการเช็คชื่อ
-            </p>
+            <div v-else-if="!isLoadingSessions && recentSessions.length === 0" class="text-center text-gray-500 py-10">
+              <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                aria-hidden="true">
+                <path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+              </svg>
+              <p class="mt-2 text-lg">ยังไม่มีประวัติการเช็คชื่อ</p>
+              <p class="text-sm text-gray-400">เริ่มสร้างเซสชันการเช็คชื่อใหม่ได้เลย</p>
+            </div>
 
             <!-- วนลูปแสดงประวัติเซสชัน -->
-            <div v-for="session in recentSessions" :key="session.id" @click="viewSessionAttendance(session.id)"
-              class="flex flex-col md:flex-row md:items-center justify-between py-3 px-4 border-b border-gray-200 cursor-pointer hover:bg-gray-50 transition duration-150 rounded-lg">
-              <div>
-                <div class="flex items-center">
-                  <!-- วงกลมสถานะ (เขียว = Active, เทา = Inactive) -->
-                  <div class="w-3 h-3 rounded-full mr-3"
+            <div v-else v-for="session in recentSessions" :key="session.id"
+              class="flex flex-col md:flex-row md:items-center justify-between py-4 px-5 border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition duration-150 rounded-lg group">
+
+              <div @click="viewSessionAttendance(session.id)" class="flex-grow cursor-pointer pr-4">
+                <div class="flex items-center mb-1">
+                  <div class="w-3 h-3 rounded-full mr-3 flex-shrink-0"
                     :class="{ 'bg-green-500': session.isActive, 'bg-gray-400': !session.isActive }"></div>
-                  <span class="text-gray-700 font-medium">
-                    {{ session.week ? `สัปดาห์ที่ ${session.week}` : `เซสชัน (${formatTimestamp(session.createdAt)})` }}
+                  <span class="text-gray-800 font-semibold text-base md:text-lg">
+                    {{ session.week ? `สัปดาห์ที่ ${session.week}` : `เซสชัน` }}
+                    <!-- เพิ่มการแสดงสาขาวิชา (major) ตรงนี้ -->
+                    <span v-if="session.major" class="font-normal text-gray-600 text-sm md:text-base ml-1">
+                      ({{ session.major }})
+                    </span>
                   </span>
                   <span v-if="!session.isActive"
-                    class="ml-2 px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">
+                    class="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600">
                     สิ้นสุดแล้ว
                   </span>
+                  <span v-if="session.topic" class="ml-2 text-sm text-gray-500 truncate hidden md:inline">
+                    - {{ session.topic }}
+                  </span>
                 </div>
-                <!-- แสดงชื่อผู้สร้าง -->
-                <p class="ml-6 text-sm text-gray-500 mt-1">
-                  สร้างโดย: {{ session.createdBy || 'ไม่ทราบ' }}
+                <p class="ml-6 text-sm text-gray-500">
+                  สร้างเมื่อ: {{ formatTimestamp(session.createdAt) }} ({{ formatTimeAgo(session.createdAt) }})
+                </p>
+                <p class="ml-6 text-xs text-gray-400 mt-0.5">
+                  สร้างโดย: {{ session.createdBy || 'ไม่ระบุ' }}
                 </p>
               </div>
-              <div class="text-right mt-2 md:mt-0">
-                <span class="text-sm text-gray-500 block">{{ formatTimestamp(session.createdAt) }}</span>
-                <span class="text-xs text-gray-400 block">{{ formatTimeAgo(session.createdAt) }}</span>
+
+              <div class="flex items-center mt-3 md:mt-0 flex-shrink-0">
+                <!-- ปุ่มลบ -->
+                <button @click.stop="confirmDeleteSession(session)" :disabled="isDeletingSession === session.id"
+                  class="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-full transition duration-150 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-50"
+                  :title="`ลบเซสชัน ${session.week ? 'สัปดาห์ที่ ' + session.week : ''} ${session.major ? '(' + session.major + ')' : ''}`.trim()">
+                  <svg v-if="isDeletingSession !== session.id" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"
+                    xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd"
+                      d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                      clip-rule="evenodd"></path>
+                  </svg>
+                  <svg v-else class="animate-spin h-5 w-5 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none"
+                    viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                    </path>
+                  </svg>
+                </button>
               </div>
             </div>
+
+
           </div>
         </div>
       </div>
+      <!-- ... ส่วน footer ... -->
+
+
+
+
       <br>
       <footer class="text-center py-4 text-xs text-gray-500">
         &copy; {{ new Date().getFullYear() }} CP352201 & SC362201 Web Design Technologies

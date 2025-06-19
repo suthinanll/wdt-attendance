@@ -7,6 +7,7 @@ import AtdDatalist from '@/views/AtdDatalist.vue'
 import StudentList from '@/views/StudentList.vue'
 import PointStudent from '@/views/PointStudent.vue'
 import ScoreboardPage from '@/views/ScoreboardPage.vue'
+import ShowdataScore from '@/views/ShowdataScore.vue'
 
 const routes = [
   { path: '/', redirect: '/login' },
@@ -16,6 +17,7 @@ const routes = [
   { path: '/students', component: StudentList },
   { path: '/addpoint', component: PointStudent },
   { path: '/scoreboard', component: ScoreboardPage },
+  { path: '/score', component:ShowdataScore },
 
 
   {

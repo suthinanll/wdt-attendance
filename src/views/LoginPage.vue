@@ -161,13 +161,7 @@ const loginWithEmail = async () => {
 const loginWithGoogle = async () => {
   const provider = new GoogleAuthProvider()
   try {
-    Swal.fire({
-      title: 'กำลังเข้าสู่ระบบด้วย Google...',
-      allowOutsideClick: false,
-      didOpen: () => {
-        Swal.showLoading()
-      }
-    })
+  
 
     const result = await signInWithPopup(auth, provider)
     const userEmail = result.user.email

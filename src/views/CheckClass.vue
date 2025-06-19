@@ -56,7 +56,7 @@ async function fetchSessionInfo() {
     }
 
     if (!sessionInfo.value.isActive) {
-      errorMessage.value = 'หมดเวลาการเช็คชื่อแล้ว (เซสชันถูกปิดโดยผู้สอน)'
+      errorMessage.value = 'หมดเวลาการเช็คชื่อแล้ว '
       formDisabled.value = true
       return
     }
@@ -260,7 +260,7 @@ onMounted(async () => {
             type="text"
             maxlength="15"
             class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 transition-all"
-            placeholder="เช่น 653XXXXX"
+            placeholder="เช่น 67XXXXXXX-X"
             :disabled="loading"
             autocomplete="off"
             required
@@ -317,10 +317,10 @@ onMounted(async () => {
           <p v-if="calculatedScore > 0"
             :class="calculatedScore === 1 ? 'text-green-600' : 'text-orange-600'"
             class="text-sm mt-1">
-            ได้รับ {{ attendanceStatus === 'on-time' ? '1 คะแนน (มาทันเวลา)' : '0.5 คะแนน (มาสาย)' }}
+            ได้รับ {{ attendanceStatus === 'on-time' ? '1 คะแนน' : '0.5 คะแนน' }}
           </p>
           <p v-else-if="attendanceStatus === '' && errorMessage === '' && formDisabled" class="text-sm mt-1 text-gray-600">
-            คุณได้ทำการเช็คชื่อในเซสชันนี้ไปแล้ว (อาจจะโหลดหน้านี้ซ้ำ)
+            คุณได้ทำการเช็คชื่อในเซสชันนี้ไปแล้ว
           </p>
         </div>
       </div>

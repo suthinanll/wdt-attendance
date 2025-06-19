@@ -45,17 +45,13 @@ function getAttendanceStatusText(attendee) {
   }
 
   let statusText = `${attendee.score} คะแนน`
-  let cssClass = attendee.score === 1 ? 'text-green-600' : 'text-orange-600' // orange for 0.5
+  let cssClass = attendee.score === 1 ? 'text-green-600' : 'text-orange-600'
 
-  // Based on the logic in CheckClassView:
-  // score 1 means status 'on-time'
-  // score 0.5 means status 'late'
   if (attendee.status === 'on-time' || attendee.score === 1) {
     statusText += ' (มาทันเวลา)'
   } else if (attendee.status === 'late' || attendee.score === 0.5) {
     statusText += ' (มาสาย)'
   }
-  // Removed 'late-round' and its fallback, as it's no longer a separate concept.
 
   return { text: statusText, class: cssClass }
 }
@@ -98,34 +94,40 @@ async function fetchSessionAndAttendance() {
   )
 
   unsubscribe = onSnapshot(q, async (snapshot) => {
-    const records = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
+    const records = snapshot.docs.map(docSnap => ({ // Renamed doc to docSnap to avoid conflict
+      id: docSnap.id,
+      ...docSnap.data()
     }))
 
     const attendeesWithDetails = await Promise.all(records.map(async (rec) => {
       let name = rec.name || ''
-      let major = rec.major || ''
-      if (!name || !major) {
-        try {
-          const stuRef = doc(db, 'students', rec.studentId)
-          const stuSnap = await getDoc(stuRef)
-          if (stuSnap.exists()) {
-            const studentData = stuSnap.data()
-            name = name || studentData.name || 'ไม่พบชื่อนักเรียน'
-            major = major || studentData.major || 'ไม่พบสาขา'
-          } else {
-            name = name || 'ไม่พบชื่อนักเรียน'
-            major = major || 'ไม่พบสาขา'
-          }
-        } catch (e) {
-          console.warn('Could not fetch student details for ID:', rec.studentId, e)
-          name = name || 'Error fetching name'
-          major = major || 'Error fetching major'
+      let studentMajor = rec.major || '' // Renamed to studentMajor to differentiate from session major
+      if (!name || !studentMajor) { // Ensure we try to fetch if either is missing
+        if (rec.studentId) { // Only try to fetch if studentId is present
+            try {
+            const stuRef = doc(db, 'students', rec.studentId) // Use doc directly
+            const stuSnap = await getDoc(stuRef)
+            if (stuSnap.exists()) {
+                const studentData = stuSnap.data()
+                name = name || studentData.name || 'ไม่พบชื่อนักเรียน'
+                studentMajor = studentMajor || studentData.major || 'ไม่พบสาขา'
+            } else {
+                name = name || 'ไม่พบชื่อนักเรียน'
+                studentMajor = studentMajor || 'ไม่พบสาขา'
+            }
+            } catch (e) {
+            console.warn('Could not fetch student details for ID:', rec.studentId, e)
+            name = name || 'Error fetching name'
+            studentMajor = studentMajor || 'Error fetching major'
+            }
+        } else {
+            name = name || 'ไม่ระบุชื่อ (ไม่มีรหัส)'
+            studentMajor = studentMajor || 'ไม่ระบุสาขา (ไม่มีรหัส)'
         }
       }
       const attendanceDisplay = getAttendanceStatusText(rec)
-      return { ...rec, name, major, attendanceDisplay }
+      // Use studentMajor for the attendee's major in the table
+      return { ...rec, name, major: studentMajor, attendanceDisplay }
     }))
     attendees.value = attendeesWithDetails
     loading.value = false
@@ -147,30 +149,38 @@ onBeforeUnmount(() => {
 })
 
 watch(() => props.sessionId, (newSessionId) => {
-  if (newSessionId) {
+  if (newSessionId && newSessionId !== (sessionInfo.value ? sessionInfo.value.id : null)) { // Check if newSessionId is different
     fetchSessionAndAttendance()
   }
-}, { immediate: !route.params.sessionId })
+}, { immediate: !route.params.sessionId }) // immediate only if not coming from route params initially
 
 watch(() => route.params.sessionId, (newSessionId) => {
   if (newSessionId && newSessionId !== (sessionInfo.value ? sessionInfo.value.id : null)) {
     fetchSessionAndAttendance()
   }
-}, { immediate: !props.sessionId })
+}, { immediate: !props.sessionId }) // immediate only if not coming from props initially
 </script>
 
 <template>
   <div class="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8">
     <div class="max-w-5xl mx-auto bg-white rounded-xl shadow-2xl p-6 md:p-8">
       <!-- Header -->
-      <div class="mb-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div class="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 class="text-3xl font-bold text-gray-800">รายละเอียดการเช็คชื่อ</h1>
-          <p v-if="sessionInfo" class="text-gray-600">เซสชัน: <span class="font-semibold">{{ sessionInfo.week ? `สัปดาห์ที่ ${sessionInfo.week}` : `เซสชัน (${formatTimestamp(sessionInfo.createdAt)})` }}</span>
+          <p v-if="sessionInfo" class="text-gray-600 mt-1">
+            เซสชัน:
+            <span class="font-semibold">
+              {{ sessionInfo.week ? `สัปดาห์ที่ ${sessionInfo.week}` : `เซสชันวันที่ ${formatTimestamp(sessionInfo.createdAt)}` }}
+            </span>
+            <!-- แสดงสาขาของเซสชัน -->
+            <span v-if="sessionInfo.major" class="font-normal text-gray-500">
+              ({{ sessionInfo.major }})
+            </span>
           </p>
         </div>
         <button @click="router.back()"
-          class="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg text-sm font-medium">
+          class="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg text-sm font-medium flex-shrink-0">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline-block mr-1 -mt-0.5" viewBox="0 0 20 20"
             fill="currentColor">
             <path fill-rule="evenodd"
@@ -213,6 +223,15 @@ watch(() => route.params.sessionId, (newSessionId) => {
               <p class="text-gray-500">วันที่สร้าง:</p>
               <p class="text-gray-800 font-medium">{{ formatTimestamp(sessionInfo.createdAt) }}</p>
             </div>
+             <!-- เพิ่มการแสดงสาขาวิชาของเซสชัน -->
+            <div v-if="sessionInfo.major">
+              <p class="text-gray-500">สาขาวิชา:</p>
+              <p class="text-gray-800 font-medium">{{ sessionInfo.major }}</p>
+            </div>
+            <div v-if="sessionInfo.week">
+              <p class="text-gray-500">สัปดาห์ที่:</p>
+              <p class="text-gray-800 font-medium">{{ sessionInfo.week }}</p>
+            </div>
             <div>
               <p class="text-gray-500">สถานะ:</p>
               <p class="font-medium" :class="sessionInfo.isActive ? 'text-green-600' : 'text-red-600'">
@@ -252,7 +271,7 @@ watch(() => route.params.sessionId, (newSessionId) => {
                   <th class="p-3 text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">รหัสนักศึกษา
                   </th>
                   <th class="p-3 text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">ชื่อ-สกุล</th>
-                  <th class="p-3 text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">สาขา</th>
+                  <th class="p-3 text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">สาขา (นักศึกษา)</th> <!-- เปลี่ยนชื่อคอลัมน์ -->
                   <th class="p-3 text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">
                     เวลาที่เช็คชื่อ</th>
                   <th class="p-3 text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wider">คะแนน/สถานะ
@@ -262,14 +281,14 @@ watch(() => route.params.sessionId, (newSessionId) => {
               <tbody class="divide-y divide-gray-200">
                 <tr v-for="(attendee, index) in attendees" :key="attendee.id"
                   class="hover:bg-gray-50 transition-colors duration-150" :class="{
-                    'bg-orange-50 hover:bg-orange-100': attendee.score === 0.5, // Orange for late
-                    'bg-green-50 hover:bg-green-100': attendee.score === 1    // Green for on-time
+                    'bg-orange-50 hover:bg-orange-100': attendee.score === 0.5,
+                    'bg-green-50 hover:bg-green-100': attendee.score === 1
                   }">
-                  <td class="p-3 text-sm text-gray-700">{{ index + 1 }}</td>
+                  <td class="p-3 text-sm text-gray-700 tabular-nums">{{ index + 1 }}</td>
                   <td class="p-3 text-sm text-gray-700 font-medium">{{ attendee.studentId || '-' }}</td>
                   <td class="p-3 text-sm text-gray-800">{{ attendee.name || 'ไม่พบชื่อ' }}</td>
-                  <td class="p-3 text-sm text-gray-800">{{ attendee.major || 'ไม่พบสาขา' }}</td>
-                  <td class="p-3 text-sm text-gray-600">{{ formatTimestamp(attendee.checkedAt || attendee.timestamp) }}
+                  <td class="p-3 text-sm text-gray-800">{{ attendee.major || 'ไม่พบสาขา' }}</td> <!-- ข้อมูล major ของ attendee -->
+                  <td class="p-3 text-sm text-gray-600 tabular-nums">{{ formatTimestamp(attendee.checkedAt || attendee.timestamp) }}
                   </td>
                   <td class="p-3 text-sm font-semibold" :class="attendee.attendanceDisplay.class">
                     {{ attendee.attendanceDisplay.text }}
@@ -289,4 +308,7 @@ watch(() => route.params.sessionId, (newSessionId) => {
 
 <style scoped>
 /* Optional styles can go here */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
 </style>

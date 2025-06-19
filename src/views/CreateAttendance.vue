@@ -1,11 +1,12 @@
+// src/views/Attendance.vue หรือชื่อไฟล์ของคุณ
 <script setup>
 import { ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Swal from 'sweetalert2'
-import { auth } from '../firebase.js'
+import { auth, db } from '../firebase.js' // ตรวจสอบว่า db ถูก import ถูกต้อง
 import { onAuthStateChanged } from 'firebase/auth'
 import {
-  getFirestore,
+  // getFirestore, // ถ้า db ถูก import แยกแล้ว ไม่ต้องใช้ getFirestore() อีก
   collection,
   addDoc,
   serverTimestamp,
@@ -25,11 +26,12 @@ const router = useRouter()
 const userEmail = ref('')
 const sessionStarted = ref(false)
 const sessionId = ref(null)
-const db = getFirestore()
+// const db = getFirestore() // ถ้า db import มาแล้ว บรรทัดนี้ไม่จำเป็น
 
-const durationMinutes = ref(30) // ระยะเวลาเซสชันทั้งหมด
-const onTimeDurationMinutes = ref(15) // ระยะเวลาสำหรับคะแนนเต็ม (นาที)
-const weekNumber = ref('') // หมายเลขสัปดาห์
+const durationMinutes = ref(30)
+const onTimeDurationMinutes = ref(15)
+const weekNumber = ref('')
+const majorName = ref('') // <--- เพิ่ม Ref สำหรับชื่อสาขา
 const countdown = ref(0)
 let timer = null
 
@@ -38,6 +40,7 @@ let unsubscribe = null
 
 const sidebarVisible = ref(false)
 
+// ... (ฟังก์ชันอื่นๆ formatTime, formatTimestamp, toggleSidebar, closeSidebar, checkActiveSession, startCountdown, stopSession คงเดิม) ...
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0')
   const s = (seconds % 60).toString().padStart(2, '0')
@@ -70,7 +73,7 @@ async function checkActiveSession() {
       collection(db, 'attendance_sessions'),
       where('createdBy', '==', userEmail.value),
       where('isActive', '==', true),
-      limit(10) // จำกัดการดึงข้อมูล
+      limit(10)
     )
     const querySnapshot = await getDocs(q)
     if (!querySnapshot.empty) {
@@ -98,15 +101,13 @@ async function checkActiveSession() {
           if (latestSession.onTimeDurationSeconds) {
             onTimeDurationMinutes.value = Math.ceil(latestSession.onTimeDurationSeconds / 60)
           }
+          // ดึง week และ major ของ session ที่ active อยู่มาแสดง (ถ้ามี)
+          weekNumber.value = latestSession.week || ''
+          majorName.value = latestSession.major || ''
+
           countdown.value = remainingSeconds
           startCountdown()
-          Swal.fire({
-            title: 'กู้คืนเซสชันสำเร็จ',
-            text: `กำลังดำเนินการเช็คชื่อสำหรับสัปดาห์ที่ ${latestSession.week || 'ไม่ระบุ'}`,
-            icon: 'info',
-            timer: 3000,
-            showConfirmButton: false
-          })
+         
         } else {
           await updateDoc(doc(db, 'attendance_sessions', latestSession.id), {
             isActive: false
@@ -168,11 +169,54 @@ async function stopSession() {
   }
 }
 
+
+async function startSession() {
+  if (durationMinutes.value <= 0 || !Number.isInteger(durationMinutes.value)) {
+    Swal.fire('กรุณากรอกระยะเวลาเซสชันทั้งหมดเป็นจำนวนเต็มบวก', '', 'warning')
+    return
+  }
+  if (weekNumber.value.trim() === '') {
+    Swal.fire('กรุณากรอกหมายเลขสัปดาห์', '', 'warning')
+    return
+  }
+  if (majorName.value.trim() === '') { 
+    Swal.fire('กรุณากรอกชื่อสาขาวิชา', '', 'warning')
+    return
+  }
+
+  try {
+    const docRef = await addDoc(collection(db, 'attendance_sessions'), {
+      createdAt: serverTimestamp(),
+      createdBy: userEmail.value,
+      isActive: true,
+      duration: durationMinutes.value * 60,
+      onTimeDurationSeconds: onTimeDurationMinutes.value * 60,
+      week: weekNumber.value.trim(),
+      major: majorName.value.trim() // <--- บันทึกชื่อสาขา
+    })
+    sessionId.value = docRef.id
+    sessionStarted.value = true
+    countdown.value = durationMinutes.value * 60
+    startCountdown()
+    Swal.fire({
+      title: 'เริ่มเซสชันการเช็คชื่อเรียบร้อยแล้ว',
+      text: `เซสชันสำหรับสัปดาห์ที่ ${weekNumber.value} (${majorName.value.trim()}) กำลังดำเนินการ`, // <--- อัปเดตข้อความ Swal
+      icon: 'success',
+      timer: 2500,
+      showConfirmButton: false
+    })
+    // ไม่ต้องเคลียร์ weekNumber และ majorName ที่นี่ เพราะ checkActiveSession จะดึงมาแสดงถ้ามี session active
+  } catch (error) {
+    console.error("Error starting session:", error);
+    Swal.fire('เกิดข้อผิดพลาดในการสร้างเซสชัน', error.message, 'error')
+  }
+}
+
 onMounted(() => {
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       userEmail.value = user.email
-      await checkActiveSession()
+      await checkActiveSession() // ตรวจสอบเซสชันที่ active เมื่อโหลดหน้า
     } else {
       router.push('/')
     }
@@ -187,18 +231,22 @@ onBeforeUnmount(() => {
   }
 })
 
-watch(sessionId, (newVal) => {
+watch(sessionId, (newVal, oldVal) => {
+  if (newVal === oldVal) return; // ป้องกันการเรียกซ้ำถ้าค่าไม่เปลี่ยน
+
   if (unsubscribe) {
     unsubscribe()
     unsubscribe = null
   }
+
+  attendeesList.value = [] // Clear list when session ID changes or stops
+
   if (newVal) {
     listenToAttendance()
-  } else {
-    attendeesList.value = [] // Clear list when session stops
   }
 })
 
+ 
 async function logout() {
   const result = await Swal.fire({
     title: 'ต้องการออกจากระบบจริงหรือไม่?',
@@ -216,7 +264,9 @@ async function logout() {
 }
 
 function listenToAttendance() {
-  if (!sessionId.value) return
+  if (!sessionId.value) {
+    return;
+  }
   const q = query(
     collection(db, 'attendance_records'),
     where('sessionId', '==', sessionId.value),
@@ -231,13 +281,17 @@ function listenToAttendance() {
       let name = rec.name || ''
       if (!name && rec.studentId) {
         try {
-          const stuRef = doc(db, 'students', rec.studentId)
-          const stuSnap = await getDoc(stuRef)
-          if (stuSnap.exists()) {
-            name = stuSnap.data().name
+          const studentDocRef = doc(db, 'students', rec.studentId);
+          const studentDocSnap = await getDoc(studentDocRef);
+
+          if (studentDocSnap.exists()) {
+            name = studentDocSnap.data().name 
+          } else {
+            name = 'ไม่พบชื่อนักเรียน';
           }
         } catch (e) {
           console.warn("Could not fetch student name for", rec.studentId, e)
+          name = 'Error fetching name';
         }
       }
       return { ...rec, name, score: rec.score, status: rec.status }
@@ -248,62 +302,26 @@ function listenToAttendance() {
   })
 }
 
-async function startSession() {
-  if (durationMinutes.value <= 0) {
-    Swal.fire('กรุณากรอกระยะเวลาเซสชันทั้งหมดที่ถูกต้อง', '', 'warning')
-    return
-  }
-  if (onTimeDurationMinutes.value <= 0 || onTimeDurationMinutes.value > durationMinutes.value) {
-    Swal.fire('กรุณากรอกระยะเวลาสำหรับคะแนนเต็มที่ถูกต้อง (ต้องไม่เกินระยะเวลาเซสชันทั้งหมด)', '', 'warning')
-    return
-  }
-  if (weekNumber.value.trim() === '') {
-    Swal.fire('กรุณากรอกหมายเลขสัปดาห์', '', 'warning')
-    return
-  }
-
-  try {
-    const docRef = await addDoc(collection(db, 'attendance_sessions'), {
-      createdAt: serverTimestamp(),
-      createdBy: userEmail.value,
-      isActive: true,
-      duration: durationMinutes.value * 60, // ระยะเวลาเซสชันทั้งหมด (วินาที)
-      onTimeDurationSeconds: onTimeDurationMinutes.value * 60, // ระยะเวลาสำหรับคะแนนเต็ม (วินาที)
-      week: weekNumber.value.trim() // บันทึกหมายเลขสัปดาห์
-    })
-    sessionId.value = docRef.id
-    sessionStarted.value = true
-    countdown.value = durationMinutes.value * 60
-    startCountdown()
-    Swal.fire({
-      title: 'เริ่มเซสชันการเช็คชื่อเรียบร้อยแล้ว',
-      text: `เซสชันสำหรับสัปดาห์ที่ ${weekNumber.value} กำลังดำเนินการ`,
-      icon: 'success',
-      timer: 2000,
-      showConfirmButton: false
-    })
-  } catch (error) {
-    Swal.fire('เกิดข้อผิดพลาดในการสร้างเซสชัน', error.message, 'error')
-  }
-}
 </script>
 
 <template>
   <div class="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
-    <!-- Header -->
-    <header class="bg-white shadow-lg relative z-10">
+   
+        <header class="bg-white shadow-lg">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center py-6">
-          <router-link to="/admin" class="flex-shrink-0 block">
-            <h1 class="text-3xl font-bold text-green-700">ระบบเช็คชื่อและให้คะแนน</h1>
-            <h1 class="text-xl text-gray-500">CP352201 & SC362201 Web Design Technologies</h1>
-          </router-link>
+          <div class="flex items-center">
+            <router-link to="/admin" class="flex-shrink-0 block">
+              <h1 class="text-2xl font-bold text-green-600">ระบบเช็คชื่อและให้คะแนน</h1>
+              <h1 class=" text-gray-500">CP352201 & SC362201 Web Design Technologies</h1>
+            </router-link>
+
+          </div>
           <div class="flex items-center space-x-4">
             <div class="text-gray-700">
               <span class="text-sm">สวัสดี, </span>
               <span class="font-semibold">{{ userEmail }}</span>
             </div>
-            
             <button @click="logout"
               class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300 font-medium text-sm">
               ออกจากระบบ
@@ -313,7 +331,6 @@ async function startSession() {
       </div>
     </header>
 
-    
     <!-- Main Content -->
     <main class="max-w-6xl mx-auto p-8 relative">
       <div class="text-center mb-8">
@@ -327,32 +344,39 @@ async function startSession() {
           {{ sessionStarted ? 'เซสชันปัจจุบัน' : 'สร้างการเช็คชื่อใหม่' }}
         </h3>
 
-        <div v-if="!sessionStarted" class="grid md:grid-cols-3 gap-6 mb-6">
+        <div v-if="!sessionStarted" class="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           <div>
-            <label class="block text-gray-700 font-semibold mb-3">ระยะเวลาทั้งหมด (นาที)</label>
-            <input v-model.number="durationMinutes" type="number" min="1"
+            <label for="durationMinutes" class="block text-gray-700 font-semibold mb-2">ระยะเวลาทั้งหมด (นาที)</label>
+            <input id="durationMinutes" v-model.number="durationMinutes" type="number" min="1"
               class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all" />
           </div>
           <div>
-            <label class="block text-gray-700 font-semibold mb-3">เวลาสำหรับคะแนนเต็ม (นาที)</label>
-            <input v-model.number="onTimeDurationMinutes" type="number" min="1"
+            <label for="onTimeDurationMinutes" class="block text-gray-700 font-semibold mb-2">เวลาสำหรับคะแนนเต็ม (นาที)</label>
+            <input id="onTimeDurationMinutes" v-model.number="onTimeDurationMinutes" type="number" min="1"
               class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
               placeholder="เช่น 15" />
           </div>
           <div>
-            <label class="block text-gray-700 font-semibold mb-3">สัปดาห์ที่</label>
-            <input v-model="weekNumber" type="text"
+            <label for="weekNumber" class="block text-gray-700 font-semibold mb-2">สัปดาห์ที่</label>
+            <input id="weekNumber" v-model="weekNumber" type="text"
               class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
-              placeholder="เช่น 1, 2, 3" />
+              placeholder="เช่น 1, 2," />
+          </div>
+          <div> 
+            <label for="majorName" class="block text-gray-700 font-semibold mb-2">สาขาวิชา</label>
+            <input id="majorName" v-model="majorName" type="text"
+              class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
+              placeholder="เช่น IT , CS" />
           </div>
         </div>
 
         <div v-if="!sessionStarted">
           <button @click="startSession"
-            class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-8 py-3 rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1 font-semibold">
+            class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-8 py-3 rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-1 font-semibold text-lg">
             เริ่มเช็คชื่อ
           </button>
         </div>
+
 
         <!-- Session Info when active -->
         <div v-if="sessionStarted"
@@ -395,14 +419,14 @@ async function startSession() {
           class="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-dashed border-blue-300 p-8 rounded-2xl text-center">
           <p class="text-gray-700 mb-4 font-semibold">QR Code สำหรับการเช็คชื่อ</p>
           <div class="bg-white p-4 rounded-xl inline-block shadow-lg">
-            <QRCodeVue :value="`https://wdt-attendance.vercel.app/attendance/checkclass/${sessionId}`" :size="200" />
+            <QRCodeVue :value="`http://localhost:5173/attendance/checkclass/${sessionId}`" :size="200" />
           </div>
           <p class="text-sm text-gray-600 mt-4">แชร์ QR Code นี้ให้นักเรียนสแกนเพื่อเช็คชื่อ</p>
           <p class="text-sm text-blue-600 mt-4 break-all">
             ลิงก์สำหรับเช็คชื่อ: <br />
-            <a :href="`https://wdt-attendance.vercel.app/attendance/checkclass/${sessionId}`" target="_blank"
+            <a :href="`http://localhost:5173/attendance/checkclass/${sessionId}`" target="_blank"
               class="underline hover:text-blue-800">
-              https://wdt-attendance.vercel.app/attendance/checkclass/{{ sessionId }}
+              http://localhost:5173/attendance/checkclass/{{ sessionId }}
             </a>
           </p>
         </div>

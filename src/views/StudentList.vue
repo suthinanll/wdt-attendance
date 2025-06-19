@@ -338,10 +338,10 @@ async function handleFileUpload(event) {
       isImporting.value = false
       if (fileInput.value) fileInput.value.value = ''
     }
-    
+
   }
   reader.readAsArrayBuffer(file)
-  
+
 }
 </script>
 
@@ -353,12 +353,8 @@ async function handleFileUpload(event) {
         <div class="flex justify-between items-center py-6">
           <div class="flex items-center">
             <router-link to="/admin" class="flex-shrink-0 block">
-              <h1 class="text-3xl font-bold text-green-700">
-                ระบบเช็คชื่อและให้คะแนน
-              </h1>
-              <h1 class="text-xl text-gray-500">
-                CP352201 & SC362201 Web Design Technologies
-              </h1>
+              <h1 class="text-2xl font-bold text-green-600">ระบบเช็คชื่อและให้คะแนน</h1>
+              <h1 class=" text-gray-500">CP352201 & SC362201 Web Design Technologies</h1>
             </router-link>
           </div>
           <div class="flex items-center space-x-4">
@@ -497,6 +493,9 @@ async function handleFileUpload(event) {
             <thead class="bg-gray-50">
               <tr>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  ลำดับ
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   รหัสนักศึกษา
                 </th>
                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -514,7 +513,9 @@ async function handleFileUpload(event) {
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <tr v-for="student in filteredStudents" :key="student.id" class="hover:bg-gray-50">
+              <tr v-for="(student, index) in filteredStudents" :key="student.id" class="hover:bg-gray-50">
+                <td class="px-2 py-1.5 border text-center">{{ index + 1 }}</td>
+
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                   {{ student.studentId }}
                 </td>
