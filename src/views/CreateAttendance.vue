@@ -303,7 +303,7 @@ async function startSession() {
               <span class="text-sm">สวัสดี, </span>
               <span class="font-semibold">{{ userEmail }}</span>
             </div>
-
+            
             <button @click="logout"
               class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300 font-medium text-sm">
               ออกจากระบบ
@@ -313,7 +313,7 @@ async function startSession() {
       </div>
     </header>
 
-
+    
     <!-- Main Content -->
     <main class="max-w-6xl mx-auto p-8 relative">
       <div class="text-center mb-8">
@@ -395,14 +395,14 @@ async function startSession() {
           class="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-dashed border-blue-300 p-8 rounded-2xl text-center">
           <p class="text-gray-700 mb-4 font-semibold">QR Code สำหรับการเช็คชื่อ</p>
           <div class="bg-white p-4 rounded-xl inline-block shadow-lg">
-            <QRCodeVue :value="`${window.location.origin}/attendance/checkclass/${sessionId}`" :size="200" />
+            <QRCodeVue :value="`https://wdt-attendance.vercel.app/attendance/checkclass/${sessionId}`" :size="200" />
           </div>
           <p class="text-sm text-gray-600 mt-4">แชร์ QR Code นี้ให้นักเรียนสแกนเพื่อเช็คชื่อ</p>
           <p class="text-sm text-blue-600 mt-4 break-all">
             ลิงก์สำหรับเช็คชื่อ: <br />
-            <a :href="`${window.location.origin}/attendance/checkclass/${sessionId}`" target="_blank"
+            <a :href="`https://wdt-attendance.vercel.app/attendance/checkclass/${sessionId}`" target="_blank"
               class="underline hover:text-blue-800">
-              {{ `${window.location.origin}/attendance/checkclass/${sessionId}` }}
+              https://wdt-attendance.vercel.app/attendance/checkclass/{{ sessionId }}
             </a>
           </p>
         </div>
@@ -464,7 +464,8 @@ async function startSession() {
 
           <div v-else class="p-4 space-y-3">
             <div v-for="(attendee, index) in attendeesList" :key="attendee.id"
-              class="rounded-xl p-4 border transition-all duration-200 hover:shadow-md" :class="[
+              class="rounded-xl p-4 border transition-all duration-200 hover:shadow-md"
+              :class="[
                 attendee.status === 'late' || attendee.score === 0.5
                   ? 'bg-orange-50 border-orange-300'
                   : (attendee.status === 'on-time' || attendee.score === 1
@@ -472,11 +473,12 @@ async function startSession() {
                     : 'bg-gray-50 border-gray-200')
               ]">
               <div class="flex items-center">
-                <div class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold" :class="attendee.status === 'late' || attendee.score === 0.5
-                  ? 'bg-orange-400'
-                  : (attendee.status === 'on-time' || attendee.score === 1
-                    ? 'bg-gradient-to-br from-green-400 to-emerald-500'
-                    : 'bg-gray-400')">
+                <div class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold"
+                  :class="attendee.status === 'late' || attendee.score === 0.5
+                    ? 'bg-orange-400'
+                    : (attendee.status === 'on-time' || attendee.score === 1
+                      ? 'bg-gradient-to-br from-green-400 to-emerald-500'
+                      : 'bg-gray-400')">
                   {{ index + 1 }}
                 </div>
                 <div class="ml-4 flex-1">
