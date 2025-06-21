@@ -107,7 +107,7 @@ async function checkActiveSession() {
 
           countdown.value = remainingSeconds
           startCountdown()
-         
+
         } else {
           await updateDoc(doc(db, 'attendance_sessions', latestSession.id), {
             isActive: false
@@ -179,7 +179,7 @@ async function startSession() {
     Swal.fire('กรุณากรอกหมายเลขสัปดาห์', '', 'warning')
     return
   }
-  if (majorName.value.trim() === '') { 
+  if (majorName.value.trim() === '') {
     Swal.fire('กรุณากรอกชื่อสาขาวิชา', '', 'warning')
     return
   }
@@ -246,7 +246,7 @@ watch(sessionId, (newVal, oldVal) => {
   }
 })
 
- 
+
 async function logout() {
   const result = await Swal.fire({
     title: 'ต้องการออกจากระบบจริงหรือไม่?',
@@ -285,7 +285,7 @@ function listenToAttendance() {
           const studentDocSnap = await getDoc(studentDocRef);
 
           if (studentDocSnap.exists()) {
-            name = studentDocSnap.data().name 
+            name = studentDocSnap.data().name
           } else {
             name = 'ไม่พบชื่อนักเรียน';
           }
@@ -306,16 +306,16 @@ function listenToAttendance() {
 
 <template>
   <div class="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
-   
-        <header class="bg-white shadow-lg">
+
+    <header class="bg-white shadow-lg">
+      <!-- ส่วน Header บน: Logo และ User Info/Logout -->
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between items-center py-6">
+        <div class="flex justify-between items-center py-6 border-b border-gray-200">
           <div class="flex items-center">
             <router-link to="/admin" class="flex-shrink-0 block">
               <h1 class="text-2xl font-bold text-green-600">ระบบเช็คชื่อและให้คะแนน</h1>
-              <h1 class=" text-gray-500">CP352201 & SC362201 Web Design Technologies</h1>
+              <h1 class="text-sm text-gray-500">CP352201 & SC362201 Web Design Technologies</h1>
             </router-link>
-
           </div>
           <div class="flex items-center space-x-4">
             <div class="text-gray-700">
@@ -329,6 +329,27 @@ function listenToAttendance() {
           </div>
         </div>
       </div>
+
+      <!-- ส่วน Navbar ล่าง: เมนูต่างๆ -->
+      <nav class="bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex items-center justify-start space-x-2 sm:space-x-4 py-3">
+            <router-link to="/attendance" class="menu-item" active-class="active-menu-item bg-gray-100">
+              เช็คชื่อ
+            </router-link>
+            <router-link to="/students" class="menu-item" active-class="active-menu-item">
+              รายชื่อนักศึกษา
+            </router-link>
+            <router-link to="/addpoint" class="menu-item" active-class="active-menu-item">
+              บันทึกคะแนน
+            </router-link>
+            <router-link to="/scoreboard" class="menu-item" active-class="active-menu-item">
+              ตารางคะแนนรวม
+            </router-link>
+            <!-- เพิ่มเมนูอื่นๆ ตามต้องการ -->
+          </div>
+        </div>
+      </nav>
     </header>
 
     <!-- Main Content -->
@@ -351,7 +372,8 @@ function listenToAttendance() {
               class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all" />
           </div>
           <div>
-            <label for="onTimeDurationMinutes" class="block text-gray-700 font-semibold mb-2">เวลาสำหรับคะแนนเต็ม (นาที)</label>
+            <label for="onTimeDurationMinutes" class="block text-gray-700 font-semibold mb-2">เวลาสำหรับคะแนนเต็ม
+              (นาที)</label>
             <input id="onTimeDurationMinutes" v-model.number="onTimeDurationMinutes" type="number" min="1"
               class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
               placeholder="เช่น 15" />
@@ -362,7 +384,7 @@ function listenToAttendance() {
               class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
               placeholder="เช่น 1, 2," />
           </div>
-          <div> 
+          <div>
             <label for="majorName" class="block text-gray-700 font-semibold mb-2">สาขาวิชา</label>
             <input id="majorName" v-model="majorName" type="text"
               class="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all"
@@ -488,8 +510,7 @@ function listenToAttendance() {
 
           <div v-else class="p-4 space-y-3">
             <div v-for="(attendee, index) in attendeesList" :key="attendee.id"
-              class="rounded-xl p-4 border transition-all duration-200 hover:shadow-md"
-              :class="[
+              class="rounded-xl p-4 border transition-all duration-200 hover:shadow-md" :class="[
                 attendee.status === 'late' || attendee.score === 0.5
                   ? 'bg-orange-50 border-orange-300'
                   : (attendee.status === 'on-time' || attendee.score === 1
@@ -497,12 +518,11 @@ function listenToAttendance() {
                     : 'bg-gray-50 border-gray-200')
               ]">
               <div class="flex items-center">
-                <div class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold"
-                  :class="attendee.status === 'late' || attendee.score === 0.5
-                    ? 'bg-orange-400'
-                    : (attendee.status === 'on-time' || attendee.score === 1
-                      ? 'bg-gradient-to-br from-green-400 to-emerald-500'
-                      : 'bg-gray-400')">
+                <div class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold" :class="attendee.status === 'late' || attendee.score === 0.5
+                  ? 'bg-orange-400'
+                  : (attendee.status === 'on-time' || attendee.score === 1
+                    ? 'bg-gradient-to-br from-green-400 to-emerald-500'
+                    : 'bg-gray-400')">
                   {{ index + 1 }}
                 </div>
                 <div class="ml-4 flex-1">
@@ -539,3 +559,27 @@ function listenToAttendance() {
     </div>
   </div>
 </template>
+
+<style scoped lang="postcss">
+.menu-item {
+  @apply px-3 py-2 rounded-md text-sm font-medium text-gray-700 relative;
+  @apply hover:text-green-700 transition-colors duration-200;
+  /* เพิ่ม position: relative เพื่อให้ pseudo-element จัดตำแหน่งได้ */
+}
+
+.menu-item::after {
+  @apply content-[''] absolute bottom-0 left-0 w-0 h-0.5 bg-green-600 transition-all duration-300 ease-out;
+}
+
+.menu-item:hover::after {
+  @apply w-full;
+}
+
+.active-menu-item {
+  @apply text-green-700 font-semibold;
+}
+
+.active-menu-item::after {
+  @apply w-full;
+}
+</style>

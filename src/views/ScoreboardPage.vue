@@ -342,18 +342,22 @@ async function logout() {
     }
   }
 }
+
 </script>
 
 <template>
   <div class="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 text-gray-800">
     <!-- Header -->
-    <header class="bg-white shadow-lg ">
+   <header class="bg-white shadow-lg">
+      <!-- ส่วน Header บน: Logo และ User Info/Logout -->
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between items-center py-6">
-          <router-link to="/admin" class="flex-shrink-0 block">
-            <h1 class="text-2xl font-bold text-green-600">ระบบเช็คชื่อและให้คะแนน</h1>
-            <h1 class=" text-gray-500">CP352201 & SC362201 Web Design Technologies</h1>
-          </router-link>
+        <div class="flex justify-between items-center py-6 border-b border-gray-200">
+          <div class="flex items-center">
+            <router-link to="/admin" class="flex-shrink-0 block">
+              <h1 class="text-2xl font-bold text-green-600">ระบบเช็คชื่อและให้คะแนน</h1>
+              <h1 class="text-sm text-gray-500">CP352201 & SC362201 Web Design Technologies</h1>
+            </router-link>
+          </div>
           <div class="flex items-center space-x-4">
             <div class="text-gray-700">
               <span class="text-sm">สวัสดี, </span>
@@ -366,6 +370,27 @@ async function logout() {
           </div>
         </div>
       </div>
+
+      <!-- ส่วน Navbar ล่าง: เมนูต่างๆ -->
+      <nav class="bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex items-center justify-start space-x-2 sm:space-x-4 py-3">
+            <router-link to="/attendance" class="menu-item" active-class="active-menu-item bg-gray-100">
+              เช็คชื่อ
+            </router-link>
+            <router-link to="/students" class="menu-item" active-class="active-menu-item">
+              รายชื่อนักศึกษา
+            </router-link>
+            <router-link to="/addpoint" class="menu-item" active-class="active-menu-item">
+              บันทึกคะแนน
+            </router-link>
+            <router-link to="/scoreboard" class="menu-item" active-class="active-menu-item">
+              ตารางคะแนนรวม
+            </router-link>
+            <!-- เพิ่มเมนูอื่นๆ ตามต้องการ -->
+          </div>
+        </div>
+      </nav>
     </header>
 
     <!-- Filter & selector -->
@@ -645,10 +670,7 @@ async function logout() {
           </table>
 
           <div v-if="!isLoading && filteredStudents.length === 0" class="py-8 text-center text-gray-500">
-            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-            </svg>
+            
             <h3 class="mt-2 text-lg font-medium text-gray-900">ไม่พบข้อมูลนักศึกษา</h3>
             <p class="mt-1 text-sm text-gray-500">กรุณาปรับเงื่อนไขการค้นหาหรือตัวกรอง
               หรือตรวจสอบว่ามีข้อมูลในระบบหรือไม่</p>
@@ -662,7 +684,7 @@ async function logout() {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="postcss">
 td,
 th {
   vertical-align: middle;
@@ -674,5 +696,27 @@ th {
 
 tbody tr:hover {
   background-color: rgba(0, 0, 0, 0.025);
+}
+
+.menu-item {
+  @apply px-3 py-2 rounded-md text-sm font-medium text-gray-700 relative;
+  @apply hover:text-green-700 transition-colors duration-200;
+  /* เพิ่ม position: relative เพื่อให้ pseudo-element จัดตำแหน่งได้ */
+}
+
+.menu-item::after {
+  @apply content-[''] absolute bottom-0 left-0 w-0 h-0.5 bg-green-600 transition-all duration-300 ease-out;
+}
+
+.menu-item:hover::after {
+  @apply w-full;
+}
+
+.active-menu-item {
+  @apply text-green-700 font-semibold;
+}
+
+.active-menu-item::after {
+  @apply w-full;
 }
 </style>
