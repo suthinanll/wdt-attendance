@@ -441,14 +441,14 @@ function listenToAttendance() {
           class="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-dashed border-blue-300 p-8 rounded-2xl text-center">
           <p class="text-gray-700 mb-4 font-semibold">QR Code สำหรับการเช็คชื่อ</p>
           <div class="bg-white p-4 rounded-xl inline-block shadow-lg">
-            <QRCodeVue :value="`http://localhost:5173/attendance/checkclass/${sessionId}`" :size="200" />
+            <QRCodeVue :value="`https://wed-ds2025.vercel.app/attendance/checkclass/${sessionId}`" :size="200" />
           </div>
           <p class="text-sm text-gray-600 mt-4">แชร์ QR Code นี้ให้นักเรียนสแกนเพื่อเช็คชื่อ</p>
           <p class="text-sm text-blue-600 mt-4 break-all">
             ลิงก์สำหรับเช็คชื่อ: <br />
-            <a :href="`http://localhost:5173/attendance/checkclass/${sessionId}`" target="_blank"
+            <a :href="`https://wed-ds2025.vercel.app/attendance/checkclass/${sessionId}`" target="_blank"
               class="underline hover:text-blue-800">
-              http://localhost:5173/attendance/checkclass/{{ sessionId }}
+              https://wed-ds2025.vercel.app/attendance/checkclass/{{ sessionId }}
             </a>
           </p>
         </div>
