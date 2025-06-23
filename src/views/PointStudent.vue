@@ -241,37 +241,42 @@ async function logout() {
 <template>
   <div class="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 text-gray-800">
     <!-- Header -->
-    <header class="bg-white shadow-lg sticky top-0 z-50">
+   <header class="bg-white shadow-lg">
+      <!-- ส่วน Header บน: Logo และ User Info/Logout -->
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between items-center py-6 border-b border-gray-200">
-          <div class="flex items-center">
-            <router-link to="/admin" class="flex-shrink-0 block">
-              <h1 class="text-xl md:text-2xl font-bold text-green-600">ระบบเช็คชื่อและให้คะแนน</h1>
-              <h1 class="text-xs md:text-sm text-gray-500">CP352201 & SC362201 Web Design Technologies</h1>
+        <div
+          class="flex flex-col sm:flex-row justify-between items-start sm:items-center py-4 sm:py-6 border-b border-gray-200 space-y-4 sm:space-y-0">
+          <div class="flex items-center w-full sm:w-auto">
+            <router-link to="/admin" class="flex-shrink-0 block w-full sm:w-auto text-center sm:text-left">
+              <h1 class="text-lg sm:text-xl lg:text-2xl font-bold text-green-600">ระบบเช็คชื่อและให้คะแนน</h1>
+              <h1 class="text-xs sm:text-sm text-gray-500">CP352201 & SC362201 Web Design Technologies</h1>
             </router-link>
           </div>
-          <div class="flex items-center space-x-2 md:space-x-4">
-            <div class="text-gray-700 hidden sm:block">
-              <span class="text-xs md:text-sm">สวัสดี, </span>
-              <span class="font-semibold text-xs md:text-sm">{{ userEmail }}</span>
+          <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
+            <div class="text-gray-700 text-center sm:text-right">
+              <span class="text-sm">สวัสดี, </span>
+              <span class="font-semibold break-all">{{ userEmail }}</span>
             </div>
             <button @click="logout"
-              class="px-3 py-1.5 md:px-4 md:py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300 font-medium text-xs md:text-sm">
+              class="w-full sm:w-auto px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300 font-medium text-sm">
               ออกจากระบบ
             </button>
           </div>
         </div>
       </div>
-      <nav class="bg-white">
+
+      <!-- ส่วน Navbar ล่าง: เมนูต่างๆ -->
+      <nav class="bg-white overflow-x-auto">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex items-center justify-start space-x-1 sm:space-x-2 md:space-x-4 py-3 overflow-x-auto">
-            <router-link to="/attendance" class="menu-item whitespace-nowrap" active-class="active-menu-item">
+          <div class="flex items-center justify-start space-x-2 sm:space-x-4 py-3 min-w-max sm:min-w-0">
+            <router-link to="/attendance" class="menu-item whitespace-nowrap"
+              active-class="active-menu-item bg-gray-100">
               เช็คชื่อ
             </router-link>
             <router-link to="/students" class="menu-item whitespace-nowrap" active-class="active-menu-item">
               รายชื่อนักศึกษา
             </router-link>
-            <router-link to="/addpoint" class="menu-item whitespace-nowrap bg-gray-100" active-class="active-menu-item">
+            <router-link to="/addpoint" class="menu-item whitespace-nowrap" active-class="active-menu-item">
               บันทึกคะแนน
             </router-link>
             <router-link to="/scoreboard" class="menu-item whitespace-nowrap" active-class="active-menu-item">
@@ -281,6 +286,7 @@ async function logout() {
         </div>
       </nav>
     </header>
+
 
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
