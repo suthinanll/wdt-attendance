@@ -449,7 +449,7 @@ async function logout() {
                     สถานะ</th>
                   <th
                     class="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-32 sm:w-40">
-                    {{ selectedScoreType === 'special' ? 'คะแนนพิเศษ' : `คะแนน (ครั้งที่ ${selectedNumber})` }}
+                    {{ selectedScoreType === 'special' ? 'คะแนนพิเศษ' : `คะแนน` }}
                   </th>
                 </tr>
               </thead>

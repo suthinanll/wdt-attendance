@@ -351,20 +351,21 @@ async function handleFileUpload(event) {
     <header class="bg-white shadow-lg">
       <!-- ส่วน Header บน: Logo และ User Info/Logout -->
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between items-center py-6 border-b border-gray-200">
-          <div class="flex items-center">
-            <router-link to="/admin" class="flex-shrink-0 block">
-              <h1 class="text-2xl font-bold text-green-600">ระบบเช็คชื่อและให้คะแนน</h1>
-              <h1 class="text-sm text-gray-500">CP352201 & SC362201 Web Design Technologies</h1>
+        <div
+          class="flex flex-col sm:flex-row justify-between items-start sm:items-center py-4 sm:py-6 border-b border-gray-200 space-y-4 sm:space-y-0">
+          <div class="flex items-center w-full sm:w-auto">
+            <router-link to="/admin" class="flex-shrink-0 block w-full sm:w-auto text-center sm:text-left">
+              <h1 class="text-lg sm:text-xl lg:text-2xl font-bold text-green-600">ระบบเช็คชื่อและให้คะแนน</h1>
+              <h1 class="text-xs sm:text-sm text-gray-500">CP352201 & SC362201 Web Design Technologies</h1>
             </router-link>
           </div>
-          <div class="flex items-center space-x-4">
-            <div class="text-gray-700">
+          <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
+            <div class="text-gray-700 text-center sm:text-right">
               <span class="text-sm">สวัสดี, </span>
-              <span class="font-semibold">{{ userEmail }}</span>
+              <span class="font-semibold break-all">{{ userEmail }}</span>
             </div>
             <button @click="logout"
-              class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300 font-medium text-sm">
+              class="w-full sm:w-auto px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-300 font-medium text-sm">
               ออกจากระบบ
             </button>
           </div>
@@ -372,22 +373,22 @@ async function handleFileUpload(event) {
       </div>
 
       <!-- ส่วน Navbar ล่าง: เมนูต่างๆ -->
-      <nav class="bg-white">
+      <nav class="bg-white overflow-x-auto">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div class="flex items-center justify-start space-x-2 sm:space-x-4 py-3">
-            <router-link to="/attendance" class="menu-item" active-class="active-menu-item bg-gray-100">
+          <div class="flex items-center justify-start space-x-2 sm:space-x-4 py-3 min-w-max sm:min-w-0">
+            <router-link to="/attendance" class="menu-item whitespace-nowrap"
+              active-class="active-menu-item bg-gray-100">
               เช็คชื่อ
             </router-link>
-            <router-link to="/students" class="menu-item" active-class="active-menu-item bg-gray-100">
+            <router-link to="/students" class="menu-item whitespace-nowrap" active-class="active-menu-item">
               รายชื่อนักศึกษา
             </router-link>
-            <router-link to="/addpoint" class="menu-item" active-class="active-menu-item bg-gray-100">
+            <router-link to="/addpoint" class="menu-item whitespace-nowrap" active-class="active-menu-item">
               บันทึกคะแนน
             </router-link>
-            <router-link to="/scoreboard" class="menu-item" active-class="active-menu-item bg-gray-100">
+            <router-link to="/scoreboard" class="menu-item whitespace-nowrap" active-class="active-menu-item">
               ตารางคะแนนรวม
             </router-link>
-            <!-- เพิ่มเมนูอื่นๆ ตามต้องการ -->
           </div>
         </div>
       </nav>
@@ -396,26 +397,29 @@ async function handleFileUpload(event) {
 
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- Section Header: Title and Action Buttons -->
       <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
         <h2 class="text-2xl font-bold text-gray-900">รายชื่อนักศึกษา</h2>
         <div class="flex flex-col sm:flex-row gap-2">
           <input type="file" ref="fileInput" @change="handleFileUpload" accept=".xlsx, .xls" style="display: none;" />
+          <!-- Responsive Button -->
           <button @click="triggerFileInput" :disabled="isImporting"
-            class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300 font-medium flex items-center justify-center text-sm sm:text-base">
+            class="px-5 py-2.5 sm:px-6 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-300 font-medium flex items-center justify-center text-sm">
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"
               xmlns="http://www.w3.org/2000/svg">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
             </svg>
-            {{ isImporting ? 'กำลังนำเข้า...' : 'นำเข้าจาก Excel' }}
+            <span>{{ isImporting ? 'กำลังนำเข้า...' : 'นำเข้าจาก Excel' }}</span>
           </button>
+          <!-- Responsive Button -->
           <button @click="openAddModal"
-            class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300 font-medium flex items-center justify-center text-sm sm:text-base">
+            class="px-5 py-2.5 sm:px-6 sm:py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300 font-medium flex items-center justify-center text-sm">
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6">
               </path>
             </svg>
-            เพิ่มนักศึกษา
+            <span>เพิ่มนักศึกษา</span>
           </button>
         </div>
       </div>
@@ -423,7 +427,8 @@ async function handleFileUpload(event) {
       <!-- Filters and Search Bar -->
       <div class="mb-6 bg-white rounded-lg shadow p-4">
         <div class="flex flex-col sm:flex-row gap-4 items-center">
-          <div class="flex-1 relative">
+          <!-- Search Input -->
+          <div class="flex-1 relative w-full">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -431,8 +436,8 @@ async function handleFileUpload(event) {
               </svg>
             </div>
             <input v-model="searchQuery" type="text"
-              class="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm sm:text-base"
-              placeholder="ค้นหาด้วยรหัสนักศึกษา ชื่อ หรือสาขา...">
+              class="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-sm"
+              placeholder="ค้นหาด้วยรหัส, ชื่อ, หรือสาขา...">
             <button v-if="searchQuery" @click="clearSearch"
               class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -441,30 +446,25 @@ async function handleFileUpload(event) {
               </svg>
             </button>
           </div>
-          <div class="w-full sm:w-auto">
-            <select v-model="selectedMajor"
-              class="w-full sm:w-48 py-2 px-3 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base">
-              <option value="">ทุกสาขา</option>
-              <option v-for="major in majors" :key="major" :value="major">{{ major }}</option>
-            </select>
-          </div>
-          <div class="w-full sm:w-auto">
-            <select v-model="selectedSection"
-              class="w-full sm:w-48 py-2 px-3 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500 text-sm sm:text-base">
-              <option value="">ทุกกลุ่มเรียน</option>
-              <option v-for="section in sections" :key="section" :value="section">{{ section }}</option>
-            </select>
-          </div>
+          <!-- Filters Dropdowns -->
+          <select v-model="selectedMajor"
+            class="w-full sm:w-48 py-2 px-3 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
+            <option value="">ทุกสาขา</option>
+            <option v-for="major in majors" :key="major" :value="major">{{ major }}</option>
+          </select>
+          <select v-model="selectedSection"
+            class="w-full sm:w-48 py-2 px-3 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
+            <option value="">ทุกกลุ่มเรียน</option>
+            <option v-for="section in sections" :key="section" :value="section">{{ section }}</option>
+          </select>
+          <!-- Clear Button -->
           <button @click="clearSearch"
-            class="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition duration-300 font-medium flex items-center justify-center text-sm sm:text-base">
-            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
+            class="w-full sm:w-auto px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-300 font-medium flex items-center justify-center text-sm">
             ล้างตัวกรอง
           </button>
         </div>
 
+        <!-- Filter Results Info -->
         <div v-if="searchQuery || selectedMajor || selectedSection" class="mt-3 text-sm text-gray-600">
           <span v-if="filteredStudents.length > 0">
             พบ <span class="font-semibold text-green-600">{{ filteredStudents.length }}</span> รายการ
@@ -476,27 +476,19 @@ async function handleFileUpload(event) {
         </div>
       </div>
 
-      <!-- Students Table -->
+      <!-- Students Table Container -->
       <div class="bg-white rounded-lg shadow-lg overflow-hidden">
-        <div v-if="isLoading && !isImporting" class="p-8 text-center">
+        <!-- Loading/Empty States -->
+        <div v-if="isLoading" class="p-8 text-center">
           <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
           <p class="mt-2 text-gray-600">กำลังโหลดข้อมูล...</p>
         </div>
-        <div v-else-if="isImporting" class="p-8 text-center">
-          <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p class="mt-2 text-gray-600">กำลังนำเข้าข้อมูลจาก Excel...</p>
-        </div>
-        <div v-else-if="students.length === 0 && !searchQuery && !selectedMajor && !selectedSection"
-          class="p-8 text-center text-gray-500">
+        <div v-else-if="students.length === 0" class="p-8 text-center text-gray-500">
           <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
           <p class="mt-2">ยังไม่มีข้อมูลนักศึกษา</p>
-          <button @click="openAddModal"
-            class="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300">
-            เพิ่มนักศึกษาคนแรก
-          </button>
         </div>
         <div v-else-if="filteredStudents.length === 0" class="p-8 text-center text-gray-500">
           <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -504,67 +496,68 @@ async function handleFileUpload(event) {
               d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
           </svg>
           <p class="mt-2">ไม่พบรายการที่ตรงกับการค้นหา</p>
-          <button @click="clearSearch"
-            class="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-300">
-            แสดงทั้งหมด
-          </button>
         </div>
 
-        <div v-else-if="filteredStudents.length > 0" class="overflow-x-auto">
+        <!-- This div enables horizontal scrolling on small screens -->
+        <div v-else class="overflow-x-auto">
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <!-- Responsive Table Headers -->
+                <th scope="col"
+                  class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   ลำดับ
                 </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col"
+                  class="px-3 py-3 sm:px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   รหัสนักศึกษา
                 </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col"
+                  class="px-3 py-3 sm:px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   ชื่อ-นามสกุล
                 </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col"
+                  class="px-3 py-3 sm:px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   สาขา
                 </th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col"
+                  class="px-3 py-3 sm:px-6 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   กลุ่มเรียน
                 </th>
-                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th scope="col"
+                  class="px-3 py-3 sm:px-6 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   จัดการ
                 </th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
               <tr v-for="(student, index) in filteredStudents" :key="student.id" class="hover:bg-gray-50">
-                <td class="px-2 py-1.5 border text-center">{{ index + 1 }}</td>
-
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {{ student.studentId }}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {{ student.name }}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {{ student.major || '-' }}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {{ student.section || '-' }}
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button @click="openEditModal(student)" class="text-blue-600 hover:text-blue-900 mr-4">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
-                      </path>
-                    </svg>
-                  </button>
-                  <button @click="deleteStudent(student)" class="text-red-600 hover:text-red-900">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
-                      </path>
-                    </svg>
-                  </button>
+                <!-- Responsive Table Cells -->
+                <td class="px-3 py-4 text-center whitespace-nowrap text-sm text-gray-500">{{ index + 1 }}</td>
+                <td class="px-3 py-4 sm:px-6 whitespace-nowrap text-sm font-medium text-gray-900">{{ student.studentId
+                }}</td>
+                <td class="px-3 py-4 sm:px-6 whitespace-nowrap text-sm text-gray-900">{{ student.name }}</td>
+                <td class="px-3 py-4 sm:px-6 whitespace-nowrap text-sm text-gray-900">{{ student.major || '-' }}</td>
+                <td class="px-3 py-4 sm:px-6 whitespace-nowrap text-sm text-gray-900">{{ student.section || '-' }}</td>
+                <td class="px-3 py-4 sm:px-6 whitespace-nowrap text-right text-sm font-medium">
+                  <div class="flex items-center justify-end space-x-2">
+                    <button @click="openEditModal(student)"
+                      class="text-blue-600 hover:text-blue-900 p-1 rounded-full hover:bg-blue-100">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                        </path>
+                      </svg>
+                    </button>
+                    <button @click="deleteStudent(student)"
+                      class="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-100">
+                      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                        </path>
+                      </svg>
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -573,9 +566,10 @@ async function handleFileUpload(event) {
       </div>
 
       <!-- Summary -->
-      <div class="mt-6 bg-white rounded-lg shadow p-6">
+      <div v-if="students.length > 0" class="mt-6 bg-white rounded-lg shadow p-4 sm:p-6">
         <h3 class="text-lg font-medium text-gray-900 mb-2">สรุปข้อมูล</h3>
-        <div class="flex flex-col sm:flex-row gap-4 text-gray-600 text-sm">
+        <!-- Responsive layout for summary details -->
+        <div class="flex flex-col sm:flex-row gap-y-2 gap-x-6 text-gray-600 text-sm">
           <p>จำนวนนักศึกษาทั้งหมด: <span class="font-semibold text-green-600">{{ students.length }}</span> คน</p>
           <p v-if="searchQuery || selectedMajor || selectedSection">แสดงผล (จากการค้นหา): <span
               class="font-semibold text-blue-600">{{ filteredStudents.length }}</span> คน</p>
