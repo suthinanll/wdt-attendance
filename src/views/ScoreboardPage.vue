@@ -6,7 +6,7 @@ import Swal from 'sweetalert2'
 import * as XLSX from 'xlsx'
 import { auth } from '../firebase.js'
 import { onAuthStateChanged } from 'firebase/auth'
-import { getFirestore, collection, getDocs } from 'firebase/firestore' // Removed setDoc, updateDoc, doc as editing is removed
+import { getFirestore, collection, getDocs } from 'firebase/firestore'
 
 const db = getFirestore()
 const router = useRouter()
@@ -16,11 +16,11 @@ const selectedScoreType = ref('lab')
 const studentsData = ref([])
 const isLoading = ref(false)
 const selectedSection = ref('')
-const selectedMajor = ref('') // Added for major filter
+const selectedMajor = ref('')
 
-const labHeaders = Array.from({ length: 16 }, (_, i) => (i + 1).toString())
-const assignmentHeaders = Array.from({ length: 12 }, (_, i) => (i + 1).toString())
-const attendanceHeaders = Array.from({ length: 16 }, (_, i) => (i + 1).toString()) // 1-16 สำหรับสัปดาห์หรือเซสชัน
+const labHeaders = Array.from({ length: 15 }, (_, i) => (i + 1).toString())
+const assignmentHeaders = Array.from({ length: 13 }, (_, i) => (i + 1).toString())
+const attendanceHeaders = Array.from({ length: 15 }, (_, i) => (i + 1).toString())
 
 
 async function fetchStudentsData() {
@@ -32,25 +32,41 @@ async function fetchStudentsData() {
       let firstName = '', lastName = ''
       if (data.name) {
         const nameParts = data.name.split(' ')
-        if (nameParts.length >= 2) {
-          firstName = nameParts[0]
-          lastName = nameParts.slice(1).join(' ')
-        } else {
-          firstName = data.name
-        }
+        firstName = nameParts[0]
+        lastName = nameParts.slice(1).join(' ')
       }
+      
+      // **CHANGED**: Normalize scores to extract only the numeric score value.
       const labScores = {}
       if (data.scores && data.scores.lab) {
         Object.entries(data.scores.lab).forEach(([key, value]) => {
-          if (!isNaN(parseInt(key))) labScores[key] = value
+          if (typeof value === 'object' && value !== null && Object.prototype.hasOwnProperty.call(value, 'score')) {
+            labScores[key] = value.score; // Extract score from object
+          } else if (typeof value === 'number') {
+            labScores[key] = value; // Handle old data format
+          }
         })
       }
+
       const assignmentScores = {}
       if (data.scores && data.scores.assignment) {
         Object.entries(data.scores.assignment).forEach(([key, value]) => {
-          if (!isNaN(parseInt(key))) assignmentScores[key] = value
+          if (typeof value === 'object' && value !== null && Object.prototype.hasOwnProperty.call(value, 'score')) {
+            assignmentScores[key] = value.score; // Extract score from object
+          } else if (typeof value === 'number') {
+            assignmentScores[key] = value; // Handle old data format
+          }
         })
       }
+
+      let specialScoreValue = null;
+      const specialData = data.scores?.special;
+      if (typeof specialData === 'object' && specialData !== null && Object.prototype.hasOwnProperty.call(specialData, 'score')) {
+        specialScoreValue = specialData.score; // Extract score from object
+      } else if (typeof specialData === 'number') {
+        specialScoreValue = specialData; // Handle old data format
+      }
+
       return {
         id: doc.id,
         studentId: doc.id,
@@ -62,7 +78,7 @@ async function fetchStudentsData() {
         program: data.program || '',
         labScores,
         assignmentScores,
-        specialScore: data.scores?.special,
+        specialScore: specialScoreValue, // Use the extracted numeric value
         attendanceData: {}
       }
     })
@@ -74,14 +90,17 @@ async function fetchStudentsData() {
   }
 }
 
+// ... ส่วนที่เหลือของ script ไม่ต้องแก้ไข ...
+// The rest of your script (fetchAttendanceData, computed properties, helper functions, exportToExcel, etc.)
+// can remain the same because they now receive the data in the simple numeric format they expect.
+
 async function fetchAttendanceData() {
   try {
-    // ดึงข้อมูลเซสชันเพื่อ map week กับ sessionNumber
     const sessionSnapshot = await getDocs(collection(db, 'attendance_sessions'))
     const sessionMap = {}
     sessionSnapshot.docs.forEach(doc => {
       const data = doc.data()
-      if (data.week) { // Assuming 'week' directly corresponds to attendanceHeaders (1-16)
+      if (data.week) {
         sessionMap[doc.id] = data.week
       }
     })
@@ -90,22 +109,18 @@ async function fetchAttendanceData() {
     const attendanceMap = {}
     querySnapshot.docs.forEach(doc => {
       const data = doc.data()
-      // Ensure studentId is present and either sessionId (for mapping to week) or sessionNumber exists
       if (data.studentId && (data.sessionId || typeof data.sessionNumber !== 'undefined')) {
         if (!attendanceMap[data.studentId]) {
           attendanceMap[data.studentId] = {}
         }
-        // Determine the key for attendanceHeaders:
-        // Prefer sessionNumber if it's directly available and maps to our headers.
-        // Otherwise, try to map sessionId to a week number.
-        let weekKey = data.sessionNumber; // Can be string or number
+        let weekKey = data.sessionNumber;
         if (data.sessionId && sessionMap[data.sessionId]) {
-          weekKey = sessionMap[data.sessionId]; // This should be a number (1-16)
+          weekKey = sessionMap[data.sessionId];
         }
 
         if (weekKey && attendanceHeaders.includes(String(weekKey))) {
           attendanceMap[data.studentId][String(weekKey)] =
-            typeof data.score !== "undefined" && data.score !== null ? data.score : 1 // Default to 1 if score is undefined/null
+            typeof data.score !== "undefined" && data.score !== null ? data.score : 1
         }
       }
     })
@@ -114,7 +129,6 @@ async function fetchAttendanceData() {
     })
   } catch (error) {
     console.error("Error fetching attendance data:", error)
-
   }
 }
 
@@ -131,7 +145,7 @@ const availableSections = computed(() => {
   })
 })
 
-const availableMajors = computed(() => { // Added for major filter
+const availableMajors = computed(() => {
   if (!studentsData.value || studentsData.value.length === 0) return [];
   const majors = new Set(studentsData.value.map(student => student.major).filter(major => major));
   return Array.from(majors).sort();
@@ -142,7 +156,7 @@ const filteredStudents = computed(() => {
   if (selectedSection.value) {
     results = results.filter(student => student.section === selectedSection.value)
   }
-  if (selectedMajor.value) { // Added for major filter
+  if (selectedMajor.value) {
     results = results.filter(student => student.major === selectedMajor.value);
   }
   if (searchQuery.value) {
@@ -153,7 +167,7 @@ const filteredStudents = computed(() => {
       student.lastName.toLowerCase().includes(query) ||
       student.name.toLowerCase().includes(query) ||
       (student.program && student.program.toLowerCase().includes(query)) ||
-      (student.major && student.major.toLowerCase().includes(query)) || // Ensure major is searchable
+      (student.major && student.major.toLowerCase().includes(query)) ||
       (student.section && student.section.toLowerCase().includes(query))
     )
   }
@@ -163,7 +177,7 @@ const filteredStudents = computed(() => {
 function clearFilters() {
   searchQuery.value = ''
   selectedSection.value = ''
-  selectedMajor.value = '' // Added for major filter
+  selectedMajor.value = ''
 }
 
 function getLabScore(student, labNumber) {
@@ -179,7 +193,7 @@ function getAttendanceStatus(student, sessionNumber) {
   if (value === 1) return '1'
   if (value === 0.5) return '0.5'
   if (value === 0) return '0'
-  return value // fallback, could be null or other undefined values
+  return value
 }
 function calculateTotalLabScore(student) {
   if (!student.labScores || Object.keys(student.labScores).length === 0) return '-'
@@ -221,9 +235,8 @@ function exportToExcel() {
     Swal.fire({ icon: 'info', title: 'ไม่มีข้อมูล', text: 'ไม่พบข้อมูลนักศึกษาตามตัวกรองปัจจุบันสำหรับส่งออก', timer: 3000 })
     return
   }
-
-  // Common columns for all sheets
-  const commonInitialCols = ['ลำดับ', 'รหัสนักศึกษา', 'ชื่อ', 'สาขา', 'Sec']; // Added สาขา
+  
+  const commonInitialCols = ['ลำดับ', 'รหัสนักศึกษา', 'ชื่อ', 'สาขา', 'Sec'];
   const commonInitialColsSpan = commonInitialCols.length;
 
   if (selectedScoreType.value === 'lab') {
@@ -233,20 +246,15 @@ function exportToExcel() {
       idx + 1,
       student.studentId,
       `${student.firstName} ${student.lastName}`,
-      student.major, // Added major
+      student.major,
       student.section,
       ...labHeaders.map(i => getLabScore(student, i)),
       student.specialScore ?? '-',
       calculateTotalLabScore(student)
     ])
     const ws = XLSX.utils.aoa_to_sheet([headerRow1, headerRow2, ...data])
-    const merges = [
-      { s: { r: 0, c: commonInitialColsSpan }, e: { r: 0, c: commonInitialColsSpan + labHeaders.length - 1 } }, // Merge "คะแนนแลป"
-    ];
-    for (let i = 0; i < commonInitialColsSpan; i++) { // Merge common headers
-      merges.push({ s: { r: 0, c: i }, e: { r: 1, c: i } });
-    }
-    // Merge "คะแนนพิเศษ" and "รวม"
+    const merges = [ { s: { r: 0, c: commonInitialColsSpan }, e: { r: 0, c: commonInitialColsSpan + labHeaders.length - 1 } } ];
+    for (let i = 0; i < commonInitialColsSpan; i++) { merges.push({ s: { r: 0, c: i }, e: { r: 1, c: i } }); }
     merges.push({ s: { r: 0, c: commonInitialColsSpan + labHeaders.length }, e: { r: 1, c: commonInitialColsSpan + labHeaders.length } });
     merges.push({ s: { r: 0, c: commonInitialColsSpan + labHeaders.length + 1 }, e: { r: 1, c: commonInitialColsSpan + labHeaders.length + 1 } });
     ws['!merges'] = merges;
@@ -262,19 +270,15 @@ function exportToExcel() {
       idx + 1,
       student.studentId,
       `${student.firstName} ${student.lastName}`,
-      student.major, // Added major
+      student.major,
       student.section,
       ...assignmentHeaders.map(i => getAssignmentScore(student, i)),
       calculateTotalAssignmentScore(student)
     ])
     const ws = XLSX.utils.aoa_to_sheet([headerRow1, headerRow2, ...data])
-    const merges = [
-      { s: { r: 0, c: commonInitialColsSpan }, e: { r: 0, c: commonInitialColsSpan + assignmentHeaders.length - 1 } }, // Merge "Assignment"
-    ];
-    for (let i = 0; i < commonInitialColsSpan; i++) { // Merge common headers
-      merges.push({ s: { r: 0, c: i }, e: { r: 1, c: i } });
-    }
-    merges.push({ s: { r: 0, c: commonInitialColsSpan + assignmentHeaders.length }, e: { r: 1, c: commonInitialColsSpan + assignmentHeaders.length } }); // Merge "รวม"
+    const merges = [ { s: { r: 0, c: commonInitialColsSpan }, e: { r: 0, c: commonInitialColsSpan + assignmentHeaders.length - 1 } } ];
+    for (let i = 0; i < commonInitialColsSpan; i++) { merges.push({ s: { r: 0, c: i }, e: { r: 1, c: i } }); }
+    merges.push({ s: { r: 0, c: commonInitialColsSpan + assignmentHeaders.length }, e: { r: 1, c: commonInitialColsSpan + assignmentHeaders.length } });
     ws['!merges'] = merges;
     XLSX.utils.book_append_sheet(wb, ws, 'Assignment Scores')
     XLSX.writeFile(wb, `คะแนนAssignment_${dateStr}.xlsx`)
@@ -288,7 +292,7 @@ function exportToExcel() {
       idx + 1,
       student.studentId,
       `${student.firstName} ${student.lastName}`,
-      student.major, // Added major
+      student.major,
       student.section,
       ...attendanceHeaders.map(i => {
         const val = getAttendanceStatus(student, i)
@@ -297,13 +301,9 @@ function exportToExcel() {
       calculateTotalAttendance(student)
     ])
     const ws = XLSX.utils.aoa_to_sheet([headerRow1, headerRow2, ...data])
-    const merges = [
-      { s: { r: 0, c: commonInitialColsSpan }, e: { r: 0, c: commonInitialColsSpan + attendanceHeaders.length - 1 } }, // Merge "เช็คชื่อ"
-    ];
-    for (let i = 0; i < commonInitialColsSpan; i++) { // Merge common headers
-      merges.push({ s: { r: 0, c: i }, e: { r: 1, c: i } });
-    }
-    merges.push({ s: { r: 0, c: commonInitialColsSpan + attendanceHeaders.length }, e: { r: 1, c: commonInitialColsSpan + attendanceHeaders.length } }); // Merge "รวม"
+    const merges = [ { s: { r: 0, c: commonInitialColsSpan }, e: { r: 0, c: commonInitialColsSpan + attendanceHeaders.length - 1 } } ];
+    for (let i = 0; i < commonInitialColsSpan; i++) { merges.push({ s: { r: 0, c: i }, e: { r: 1, c: i } }); }
+    merges.push({ s: { r: 0, c: commonInitialColsSpan + attendanceHeaders.length }, e: { r: 1, c: commonInitialColsSpan + attendanceHeaders.length } });
     ws['!merges'] = merges;
     XLSX.utils.book_append_sheet(wb, ws, 'Attendance Records')
     XLSX.writeFile(wb, `รายงานเช็คชื่อ_${dateStr}.xlsx`)
@@ -342,14 +342,12 @@ async function logout() {
     }
   }
 }
-
 </script>
 
 <template>
   <div class="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 text-gray-800">
     <!-- Header -->
       <header class="bg-white shadow-lg">
-      <!-- ส่วน Header บน: Logo และ User Info/Logout -->
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div
           class="flex flex-col sm:flex-row justify-between items-start sm:items-center py-4 sm:py-6 border-b border-gray-200 space-y-4 sm:space-y-0">
@@ -423,7 +421,7 @@ async function logout() {
             ]">
               <div class="text-center">
                 <div class="text-sm sm:text-lg font-semibold">คะแนน Lab</div>
-                <div class="text-xs sm:text-sm text-gray-500">ปฏิบัติการ 1-16</div>
+                <div class="text-xs sm:text-sm text-gray-500">ปฏิบัติการ 1-15</div>
               </div>
             </button>
             <button @click="selectedScoreType = 'assignment'" :class="[
@@ -434,7 +432,7 @@ async function logout() {
             ]">
               <div class="text-center">
                 <div class="text-sm sm:text-lg font-semibold">คะแนน Assignment</div>
-                <div class="text-xs sm:text-sm text-gray-500">งานที่มอบหมาย 1-12</div>
+                <div class="text-xs sm:text-sm text-gray-500">งานที่มอบหมาย 1-13</div>
               </div>
             </button>
             <button @click="selectedScoreType = 'attendance'" :class="[
@@ -445,7 +443,7 @@ async function logout() {
             ]">
               <div class="text-center">
                 <div class="text-sm sm:text-lg font-semibold">การเข้าชั้นเรียน</div>
-                <div class="text-xs sm:text-sm text-gray-500">16 ครั้ง</div>
+                <div class="text-xs sm:text-sm text-gray-500">15 ครั้ง</div>
               </div>
             </button>
           </div>
@@ -507,7 +505,6 @@ async function logout() {
 
         <div v-else class="overflow-x-auto bg-gray-50 rounded-lg shadow-md p-0.5 sm:p-2">
 
-          <!-- ======= ตาราง LAB ======= -->
           <table v-if="selectedScoreType === 'lab'"
             class="min-w-full border border-gray-300 bg-white text-xs sm:text-sm">
             <thead class="bg-blue-50">
@@ -683,7 +680,7 @@ async function logout() {
     <footer class="text-center py-6 text-xs text-gray-500">
         &copy; 2025 CP352201 & SC362201 Web Design Technologies. <br>
         Developed by suthinanll
-      </footer>
+    </footer>
   </div>
 </template>
 

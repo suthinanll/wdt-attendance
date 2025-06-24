@@ -1,7 +1,7 @@
 <!-- src/views/ScoreboardPage.vue -->
 <template>
   <div class="min-h-screen bg-gray-100 p-4 sm:p-8">
-    <div class="max-w-4xl mx-auto"> <!-- เพิ่ม max-w เพื่อรองรับตารางที่กว้างขึ้น -->
+    <div class="max-w-5xl mx-auto"> <!-- เพิ่ม max-w เพื่อรองรับตารางที่กว้างขึ้น -->
       <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 sm:mb-8 text-center">
         ตรวจสอบคะแนน
       </h1>
@@ -70,10 +70,8 @@
           <p v-if="studentData.section" class="text-sm text-gray-600">กลุ่มเรียน: <span class="font-medium">{{ studentData.section }}</span></p>
         </div>
 
-        <!-- Dropdown เลือกประเภทคะแนน -->
         <div class="mb-6">
           <label for="scoreTypeSelect" class="block text-sm font-medium text-gray-700 mb-1">เลือกประเภทคะแนนที่ต้องการดู:</label>
-          <br>
           <select
             id="scoreTypeSelect"
             v-model="selectedScoreType"
@@ -87,74 +85,88 @@
           </select>
         </div>
 
-        <!-- ส่วนแสดงผลคะแนนตามที่เลือก -->
         <div class="overflow-x-auto">
           <!-- สรุปคะแนนทั้งหมด -->
           <div v-if="selectedScoreType === 'all'" class="space-y-4">
             <div class="bg-blue-50 p-4 rounded-lg">
-              <h4 class="font-semibold text-blue-700 mb-2">คะแนน Lab (รวม): {{ calculateTotalScore(studentData.scores?.lab) }}</h4>
+              <h4 class="font-semibold text-blue-700 mb-2">คะแนน Lab ทั้งหมด : {{ calculateTotalScore(studentData.scores?.lab) }}</h4>
               <p class="text-xs text-gray-600">ดูรายละเอียดคะแนน Lab โดยเลือก "คะแนน Lab" จากเมนู</p>
             </div>
             <div class="bg-green-50 p-4 rounded-lg">
-              <h4 class="font-semibold text-green-700 mb-2">คะแนน Assignment (รวม): {{ calculateTotalScore(studentData.scores?.assignment) }}</h4>
+              <h4 class="font-semibold text-green-700 mb-2">คะแนน Assignment ทั้งหมด : {{ calculateTotalScore(studentData.scores?.assignment) }}</h4>
                <p class="text-xs text-gray-600">ดูรายละเอียดคะแนน Assignment โดยเลือก "คะแนน Assignment" จากเมนู</p>
             </div>
              <div class="bg-purple-50 p-4 rounded-lg">
-              <h4 class="font-semibold text-purple-700 mb-2">การเข้าชั้นเรียน (รวม): {{ calculateTotalAttendance(studentData.attendanceData) }}</h4>
+              <h4 class="font-semibold text-purple-700 mb-2">การเข้าชั้นเรียน ทั้งหมด : {{ calculateTotalAttendance(studentData.attendanceData) }}</h4>
                <p class="text-xs text-gray-600">ดูรายละเอียดการเข้าชั้นเรียน โดยเลือก "การเข้าชั้นเรียน" จากเมนู</p>
             </div>
+            <!-- **CHANGED**: Display special score and note -->
             <div class="bg-yellow-50 p-4 rounded-lg">
-              <h4 class="font-semibold text-yellow-700">คะแนนพิเศษ: {{ studentData.scores?.special || '-' }}</h4>
+              <h4 class="font-semibold text-yellow-700">คะแนนพิเศษ: {{ studentData.scores?.special?.score ?? '-' }}
+                <span v-if="studentData.scores?.special?.note" class="text-xs font-normal text-yellow-800 ml-1">({{ studentData.scores.special.note }})</span>
+              </h4>
             </div>
           </div>
 
           <!-- ตารางคะแนน Lab -->
+          <!-- **CHANGED**: Added 'Note' column and updated data binding -->
           <table v-if="selectedScoreType === 'lab'" class="min-w-full divide-y divide-gray-200 border border-gray-300">
             <thead class="bg-blue-50">
               <tr>
                 <th class="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">Lab ที่</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">คะแนน</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-blue-700 uppercase tracking-wider">หมายเหตุ</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <tr v-if="Object.keys(studentData.scores?.lab || {}).length === 0">
-                <td colspan="2" class="px-4 py-4 text-sm text-gray-500 text-center italic">ไม่มีข้อมูลคะแนน Lab</td>
+              <tr v-if="!studentData.scores?.lab || Object.keys(studentData.scores.lab).length === 0">
+                <td colspan="3" class="px-4 py-4 text-sm text-gray-500 text-center italic">ไม่มีข้อมูลคะแนน Lab</td>
               </tr>
-              <tr v-for="(score, labName) in sortedScores(studentData.scores?.lab)" :key="'lab-row-' + labName">
+              <tr v-for="(scoreData, labName) in sortedScores(studentData.scores?.lab)" :key="'lab-row-' + labName">
                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">Lab {{ labName }}</td>
-                <td class="px-4 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">{{ score ?? '-' }}</td>
+                <td class="px-4 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">{{ scoreData.score ?? '-' }}</td>
+                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <span v-if="scoreData.note">{{ scoreData.note }}</span>
+                  <span v-else class="italic text-gray-400">-</span>
+                </td>
               </tr>
-              <tr v-if="Object.keys(studentData.scores?.lab || {}).length > 0" class="bg-blue-50 font-semibold">
-                <td class="px-4 py-3 text-sm text-blue-700 text-right">รวมคะแนน Lab:</td>
+              <tr v-if="studentData.scores?.lab && Object.keys(studentData.scores.lab).length > 0" class="bg-blue-50 font-semibold">
+                <td class="px-4 py-3 text-sm text-blue-700 text-right" colspan="2">รวมคะแนน Lab:</td>
                 <td class="px-4 py-3 text-sm text-blue-700">{{ calculateTotalScore(studentData.scores?.lab) }}</td>
               </tr>
             </tbody>
           </table>
 
           <!-- ตารางคะแนน Assignment -->
+          <!-- **CHANGED**: Added 'Note' column and updated data binding -->
           <table v-if="selectedScoreType === 'assignment'" class="min-w-full divide-y divide-gray-200 border border-gray-300">
             <thead class="bg-green-50">
               <tr>
                 <th class="px-4 py-3 text-left text-xs font-medium text-green-700 uppercase tracking-wider">Assignment ที่</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-green-700 uppercase tracking-wider">คะแนน</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-green-700 uppercase tracking-wider">หมายเหตุ</th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-              <tr v-if="Object.keys(studentData.scores?.assignment || {}).length === 0">
-                <td colspan="2" class="px-4 py-4 text-sm text-gray-500 text-center italic">ไม่มีข้อมูลคะแนน Assignment</td>
+              <tr v-if="!studentData.scores?.assignment || Object.keys(studentData.scores.assignment).length === 0">
+                <td colspan="3" class="px-4 py-4 text-sm text-gray-500 text-center italic">ไม่มีข้อมูลคะแนน Assignment</td>
               </tr>
-              <tr v-for="(score, assignmentName) in sortedScores(studentData.scores?.assignment)" :key="'assign-row-' + assignmentName">
+              <tr v-for="(scoreData, assignmentName) in sortedScores(studentData.scores?.assignment)" :key="'assign-row-' + assignmentName">
                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700">Assignment {{ assignmentName }}</td>
-                <td class="px-4 py-4 whitespace-nowrap text-sm font-semibold text-green-600">{{ score ?? '-' }}</td>
+                <td class="px-4 py-4 whitespace-nowrap text-sm font-semibold text-green-600">{{ scoreData.score ?? '-' }}</td>
+                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <span v-if="scoreData.note">{{ scoreData.note }}</span>
+                  <span v-else class="italic text-gray-400">-</span>
+                </td>
               </tr>
-              <tr v-if="Object.keys(studentData.scores?.assignment || {}).length > 0" class="bg-green-50 font-semibold">
-                <td class="px-4 py-3 text-sm text-green-700 text-right">รวมคะแนน Assignment:</td>
+              <tr v-if="studentData.scores?.assignment && Object.keys(studentData.scores.assignment).length > 0" class="bg-green-50 font-semibold">
+                <td class="px-4 py-3 text-sm text-green-700 text-right" colspan="2">รวมคะแนน Assignment:</td>
                 <td class="px-4 py-3 text-sm text-green-700">{{ calculateTotalScore(studentData.scores?.assignment) }}</td>
               </tr>
             </tbody>
           </table>
 
-          <!-- ตารางการเข้าชั้นเรียน -->
+          <!-- ตารางการเข้าชั้นเรียน (No changes needed here) -->
           <table v-if="selectedScoreType === 'attendance'" class="min-w-full divide-y divide-gray-200 border border-gray-300">
             <thead class="bg-purple-50">
               <tr>
@@ -190,24 +202,28 @@
           </table>
 
           <!-- คะแนนพิเศษ -->
+          <!-- **CHANGED**: Display special score and note -->
            <div v-if="selectedScoreType === 'special'" class="bg-yellow-50 p-4 rounded-lg shadow">
              <h4 class="text-lg font-semibold text-yellow-700">คะแนนพิเศษ</h4>
-             <p class="text-2xl font-bold text-yellow-800 mt-2">{{ studentData.scores?.special || '-' }}</p>
-             <p v-if="!(studentData.scores?.special)" class="text-sm text-gray-500 italic mt-1">ไม่มีข้อมูลคะแนนพิเศษ</p>
+             <p class="text-2xl font-bold text-yellow-800 mt-2">{{ studentData.scores?.special?.score ?? '-' }}</p>
+             <p v-if="studentData.scores?.special?.note" class="text-sm text-gray-600 mt-1">
+                <span class="font-medium">หมายเหตุ:</span> {{ studentData.scores.special.note }}
+             </p>
+             <p v-if="!studentData.scores?.special" class="text-sm text-gray-500 italic mt-1">ไม่มีข้อมูลคะแนนพิเศษ</p>
            </div>
 
         </div>
       </div>
     </div>
-    <footer class="text-center py-6 mt-8 text-xs text-gray-500">
-      &copy; {{ new Date().getFullYear() }} CP352201 & SC362201 Web Design Technologies
+    <footer class="text-center py-6 text-xs text-gray-500">
+        &copy; 2025 CP352201 & SC362201 Web Design Technologies. <br>
+        Developed by suthinanll
     </footer>
   </div>
 </template>
 
 <script setup>
-// eslint-disable-next-line no-unused-vars
-import { ref, computed } from 'vue' // เพิ่ม computed
+import { ref } from 'vue'
 import { getFirestore, doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
 
 const db = getFirestore()
@@ -218,9 +234,44 @@ const isLoading = ref(false)
 const error = ref(null)
 const searchAttempted = ref(false)
 const lastSearchedCode = ref('')
-const selectedScoreType = ref('all') // ค่าเริ่มต้นให้แสดง 'all'
+const selectedScoreType = ref('all')
 
-const attendanceHeaders = Array.from({ length: 16 }, (_, i) => (i + 1).toString())
+const attendanceHeaders = Array.from({ length: 15 }, (_, i) => (i + 1).toString())
+
+// **ADDED**: Helper function to normalize score data for backward compatibility
+function normalizeScores(rawScores) {
+    const normalized = { lab: {}, assignment: {}, special: null };
+    if (!rawScores) return normalized;
+
+    // Normalize lab scores
+    for (const key in rawScores.lab) {
+        const value = rawScores.lab[key];
+        if (typeof value === 'object' && value !== null && Object.prototype.hasOwnProperty.call(value, 'score')) {
+            normalized.lab[key] = { score: value.score ?? null, note: value.note ?? '' };
+        } else if (typeof value === 'number') {
+            normalized.lab[key] = { score: value, note: '' }; // Convert old format
+        }
+    }
+    // Normalize assignment scores
+    for (const key in rawScores.assignment) {
+        const value = rawScores.assignment[key];
+        // eslint-disable-next-line no-prototype-builtins
+        if (typeof value === 'object' && value !== null && value.hasOwnProperty('score')) {
+            normalized.assignment[key] = { score: value.score ?? null, note: value.note ?? '' };
+        } else if (typeof value === 'number') {
+            normalized.assignment[key] = { score: value, note: '' }; // Convert old format
+        }
+    }
+    // Normalize special score
+    const specialValue = rawScores.special;
+    if (typeof specialValue === 'object' && specialValue !== null && Object.prototype.hasOwnProperty.call(specialValue, 'score')) {
+        normalized.special = { score: specialValue.score ?? null, note: specialValue.note ?? '' };
+    } else if (typeof specialValue === 'number') {
+        normalized.special = { score: specialValue, note: '' }; // Convert old format
+    }
+    return normalized;
+}
+
 
 async function fetchStudentScoreData(studentIdToSearch) {
   isLoading.value = true
@@ -228,7 +279,7 @@ async function fetchStudentScoreData(studentIdToSearch) {
   error.value = null
   searchAttempted.value = true
   lastSearchedCode.value = studentIdToSearch
-  selectedScoreType.value = 'all' // Reset dropdown เมื่อค้นหาใหม่
+  selectedScoreType.value = 'all'
 
   try {
     const studentDocRef = doc(db, 'students', studentIdToSearch)
@@ -238,21 +289,19 @@ async function fetchStudentScoreData(studentIdToSearch) {
       isLoading.value = false
       return
     }
-
+    
     const fetchedStudent = {
       id: studentDocSnap.id,
       studentId: studentDocSnap.id,
       name: studentDocSnap.data().name || 'N/A',
       major: studentDocSnap.data().major || '',
       section: studentDocSnap.data().section || '',
-      scores: {
-        lab: studentDocSnap.data().scores?.lab || {},
-        assignment: studentDocSnap.data().scores?.assignment || {},
-        special: studentDocSnap.data().scores?.special
-      },
+      // **CHANGED**: Use the normalization function
+      scores: normalizeScores(studentDocSnap.data().scores),
       attendanceData: {}
     }
 
+    // --- The rest of the attendance fetching logic remains the same ---
     const sessionSnapshot = await getDocs(collection(db, 'attendance_sessions'))
     const sessionMap = {}
     sessionSnapshot.docs.forEach(docSnap => {
@@ -302,21 +351,21 @@ function getAttendanceDisplay(weekNumber) {
   return String(score)
 }
 
-// ฟังก์ชันสำหรับคำนวณคะแนนรวมของ Lab หรือ Assignment
+// **CHANGED**: Calculate total score from the new data structure
 function calculateTotalScore(scoresObject) {
   if (!scoresObject || Object.keys(scoresObject).length === 0) return '-'
   let total = 0
   let hasNumericScore = false
-  Object.values(scoresObject).forEach(score => {
-    if (typeof score === 'number') {
-      total += score
+  Object.values(scoresObject).forEach(scoreData => {
+    // Check if scoreData exists and its score property is a number
+    if (scoreData && typeof scoreData.score === 'number') {
+      total += scoreData.score
       hasNumericScore = true
     }
   })
   return hasNumericScore ? total : '-'
 }
 
-// ฟังก์ชันสำหรับคำนวณคะแนนรวมการเข้าชั้นเรียน
 function calculateTotalAttendance(attendanceObject) {
   if (!attendanceObject || Object.keys(attendanceObject).length === 0) return '-'
   const arr = Object.values(attendanceObject)
@@ -332,7 +381,6 @@ function calculateTotalAttendance(attendanceObject) {
   return hasScore ? total : '-';
 }
 
-// Computed property สำหรับจัดเรียง key ของคะแนน (Lab, Assignment) เพื่อให้แสดงตามลำดับตัวเลข
 const sortedScores = (scoresObject) => {
   if (!scoresObject || typeof scoresObject !== 'object') return {};
   const sortedKeys = Object.keys(scoresObject).sort((a, b) => parseInt(a) - parseInt(b));
@@ -342,12 +390,10 @@ const sortedScores = (scoresObject) => {
   }
   return result;
 };
-
 </script>
 
 <style scoped>
-/* อาจเพิ่ม CSS ที่นี่หากต้องการ */
 table {
-  table-layout: auto; /* หรือ fixed ถ้าต้องการคอลัมน์กว้างเท่ากัน */
+  table-layout: auto;
 }
 </style>

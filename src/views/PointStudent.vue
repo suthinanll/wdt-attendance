@@ -1,5 +1,4 @@
-<!-- eslint-disable no-unused-vars -->
-<!-- src/views/AddPoint.vue (หรือ Home.vue ตามที่คุณตั้งชื่อ) -->
+<!-- eslint-disable no-prototype-builtins -->
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
@@ -19,11 +18,8 @@ const userEmail = ref('')
 const students = ref([])
 const isLoading = ref(false)
 const searchQuery = ref('')
-// activeTab ไม่ได้ใช้ในหน้านี้โดยตรง แต่ถ้ามาจากโครงสร้างอื่นก็เก็บไว้ได้
-// const activeTab = ref('scores') 
 const selectedScoreType = ref('lab') // 'lab', 'assignment', 'special'
 const selectedNumber = ref(1)
-
 const selectedMajorFilter = ref('สาขาทั้งหมด')
 const selectedSectionFilter = ref('กลุ่มเรียนทั้งหมด')
 
@@ -42,23 +38,66 @@ async function loadStudents() {
   try {
     isLoading.value = true
     const querySnapshot = await getDocs(collection(db, 'students'))
-    students.value = []
+    const studentList = []
     querySnapshot.forEach((docSnapshot) => {
       const data = docSnapshot.data()
-      students.value.push({
+      const scores = data.scores || {}
+
+      // **CHANGED**: Normalize scores to the new object format { score, note }
+      const normalizedScores = {
+        lab: {},
+        assignment: {},
+        special: null, // Default special to null
+      };
+
+      // Normalize lab scores
+      if (scores.lab) {
+        for (const key in scores.lab) {
+          const value = scores.lab[key];
+          if (typeof value === 'object' && value !== null && value.hasOwnProperty('score')) {
+            normalizedScores.lab[key] = { score: value.score ?? null, note: value.note ?? '' };
+          } else if (typeof value === 'number') {
+            normalizedScores.lab[key] = { score: value, note: '' };
+          }
+        }
+      }
+
+      // Normalize assignment scores
+      if (scores.assignment) {
+        for (const key in scores.assignment) {
+          const value = scores.assignment[key];
+          if (typeof value === 'object' && value !== null && value.hasOwnProperty('score')) {
+            normalizedScores.assignment[key] = { score: value.score ?? null, note: value.note ?? '' };
+          } else if (typeof value === 'number') {
+            normalizedScores.assignment[key] = { score: value, note: '' };
+          }
+        }
+      }
+      
+      // Normalize special score
+      if (scores.special) {
+        const value = scores.special;
+        if (typeof value === 'object' && value !== null && value.hasOwnProperty('score')) {
+            normalizedScores.special = { score: value.score ?? null, note: value.note ?? '' };
+          } else if (typeof value === 'number') {
+            normalizedScores.special = { score: value, note: '' };
+          }
+      }
+
+
+      studentList.push({
         id: docSnapshot.id,
         studentId: data.studentId || docSnapshot.id,
         name: data.name || '',
         major: data.major || '',
         section: data.section || '',
-        scores: data.scores || {
-          lab: {},
-          assignment: {},
-          special: null // Default special to null for clearer 'pending' status initially
-        }
+        scores: normalizedScores // Use the normalized scores
       })
     })
-    students.value.sort((a, b) => a.studentId.localeCompare(b.studentId))
+    
+    studentList.sort((a, b) => a.studentId.localeCompare(b.studentId))
+    students.value = studentList;
+    
   } catch (error) {
     console.error('Error loading students:', error)
     Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลนักศึกษาได้', 'error')
@@ -67,6 +106,7 @@ async function loadStudents() {
   }
 }
 
+// ... (ส่วนของ computed properties: availableMajors, availableSections, filteredStudents ไม่ต้องแก้ไข) ...
 const availableMajors = computed(() => {
   if (!students.value.length) return ['สาขาทั้งหมด'];
   const majors = new Set(students.value.map(s => s.major).filter(Boolean));
@@ -108,95 +148,135 @@ const filteredStudents = computed(() => {
   return result;
 });
 
+
+// **CHANGED**: Get the nested score value
 function getScoreForInput(student) {
   if (!student || !student.scores) return '';
+  let scoreData;
   if (selectedScoreType.value === 'special') {
-    return student.scores.special !== null && student.scores.special !== undefined ? String(student.scores.special) : '';
+    scoreData = student.scores.special;
+  } else {
+    scoreData = student.scores[selectedScoreType.value]?.[selectedNumber.value];
   }
-  if (student.scores[selectedScoreType.value]) {
-    const score = student.scores[selectedScoreType.value][selectedNumber.value];
-    return score !== null && score !== undefined ? String(score) : '';
+  
+  if (scoreData && scoreData.score !== null && scoreData.score !== undefined) {
+    return String(scoreData.score);
   }
   return '';
 }
 
-async function handleScoreChange(student, newValueStr) {
-  const studentId = student.id;
-  let newScoreValue;
-
-  const trimmedValueStr = newValueStr.trim();
-  if (trimmedValueStr === '') {
-    newScoreValue = null; // Represents clearing the score
+// **ADDED**: Get the nested note value
+function getNoteForInput(student) {
+  if (!student || !student.scores) return '';
+  let scoreData;
+  if (selectedScoreType.value === 'special') {
+    scoreData = student.scores.special;
   } else {
-    newScoreValue = parseFloat(trimmedValueStr);
-    if (isNaN(newScoreValue)) {
-      Swal.fire('ข้อมูลไม่ถูกต้อง', 'กรุณากรอกคะแนนเป็นตัวเลข หรือเว้นว่างเพื่อลบ', 'warning');
-      // Revert input value to current model state by forcing reactivity
-      const studentToRefresh = students.value.find(s => s.id === studentId);
-      if (studentToRefresh) {
-        studentToRefresh.scores = { ...studentToRefresh.scores };
-      }
-      return;
-    }
+    scoreData = student.scores[selectedScoreType.value]?.[selectedNumber.value];
   }
 
+  return scoreData?.note ?? '';
+}
+
+// A helper function to manage score updates
+async function updateStudentScoreData(studentId, updateFn) {
   const studentIndex = students.value.findIndex(s => s.id === studentId);
   if (studentIndex === -1) return;
 
-  // Optimistic update
   const oldScores = JSON.parse(JSON.stringify(students.value[studentIndex].scores));
-  const updatedScores = JSON.parse(JSON.stringify(students.value[studentIndex].scores)); // Deep copy
+  
+  // Create a deep copy to modify
+  const updatedScores = JSON.parse(JSON.stringify(students.value[studentIndex].scores));
 
-  if (selectedScoreType.value === 'special') {
-    updatedScores.special = newScoreValue; // Can be null
-  } else {
-    if (!updatedScores[selectedScoreType.value]) {
-      updatedScores[selectedScoreType.value] = {};
-    }
-    if (newScoreValue === null) {
-      // If setting to null, effectively delete the score for that number
-      delete updatedScores[selectedScoreType.value][selectedNumber.value];
-    } else {
-      updatedScores[selectedScoreType.value][selectedNumber.value] = newScoreValue;
-    }
-  }
+  // The updateFn will contain the logic to change the score/note
+  updateFn(updatedScores);
+
+  // Optimistic UI update
   students.value[studentIndex].scores = updatedScores;
 
   try {
     const studentRef = doc(db, 'students', studentId);
     await updateDoc(studentRef, { scores: updatedScores });
   } catch (error) {
-    console.error(`Error saving score for ${studentId}:`, error);
-    Swal.fire('เกิดข้อผิดพลาด', `ไม่สามารถบันทึกคะแนนสำหรับ ${student.name} ได้`, 'error');
-    // Revert optimistic update
+    console.error(`Error saving data for ${studentId}:`, error);
+    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+    // Revert on failure
     students.value[studentIndex].scores = oldScores;
   }
 }
 
-async function incrementSpecialScore(student) {
-  const studentId = student.id;
-  const studentIndex = students.value.findIndex(s => s.id === studentId);
-  if (studentIndex === -1) return;
+async function handleScoreChange(student, newValueStr) {
+  const trimmedValueStr = newValueStr.trim();
+  let newScoreValue;
 
-  let currentSpecialScore = students.value[studentIndex].scores.special;
-  if (currentSpecialScore === null || currentSpecialScore === undefined || isNaN(parseFloat(currentSpecialScore))) {
-    currentSpecialScore = 0;
+  if (trimmedValueStr === '') {
+    newScoreValue = null; // Represents clearing the score
   } else {
-    currentSpecialScore = parseFloat(currentSpecialScore);
+    newScoreValue = parseFloat(trimmedValueStr);
+    if (isNaN(newScoreValue)) {
+      Swal.fire('ข้อมูลไม่ถูกต้อง', 'กรุณากรอกคะแนนเป็นตัวเลข หรือเว้นว่างเพื่อลบ', 'warning');
+      // Re-render to revert input
+      const studentToRefresh = students.value.find(s => s.id === student.id);
+      if (studentToRefresh) studentToRefresh.scores = { ...studentToRefresh.scores };
+      return;
+    }
   }
-  const newScoreValue = currentSpecialScore + 1;
 
-  const oldScores = JSON.parse(JSON.stringify(students.value[studentIndex].scores));
-  students.value[studentIndex].scores.special = newScoreValue;
+  await updateStudentScoreData(student.id, (scores) => {
+    if (selectedScoreType.value === 'special') {
+      if (!scores.special) scores.special = { score: null, note: '' };
+      scores.special.score = newScoreValue;
+    } else {
+      const type = selectedScoreType.value;
+      const num = selectedNumber.value;
+      if (!scores[type]) scores[type] = {};
+      if (!scores[type][num]) scores[type][num] = { score: null, note: '' };
+      scores[type][num].score = newScoreValue;
+    }
+  });
+}
 
-  try {
-    const studentRef = doc(db, 'students', studentId);
-    await updateDoc(studentRef, { 'scores.special': newScoreValue });
-  } catch (error) {
-    console.error(`Error incrementing special score for ${studentId}:`, error);
-    Swal.fire('เกิดข้อผิดพลาด', `ไม่สามารถเพิ่มคะแนนพิเศษสำหรับ ${student.name} ได้`, 'error');
-    students.value[studentIndex].scores = oldScores;
+async function handleNoteChange(student, newNote) {
+  if (selectedScoreType.value === 'special') {
+    return; 
   }
+  
+  await updateStudentScoreData(student.id, (scores) => {
+    const type = selectedScoreType.value;
+    const num = selectedNumber.value;
+    if (!scores[type]) scores[type] = {};
+    if (!scores[type][num]) scores[type][num] = { score: null, note: '' };
+    scores[type][num].note = newNote;
+  });
+}
+
+
+// **CHANGED**: Increment special score for the new data structure
+async function incrementSpecialScore(student) {
+  await updateStudentScoreData(student.id, (scores) => {
+    if (!scores.special) {
+      scores.special = { score: 0, note: '' };
+    }
+    let currentScore = parseFloat(scores.special.score);
+    if (isNaN(currentScore)) {
+        currentScore = 0;
+    }
+    scores.special.score = currentScore + 1;
+  });
+}
+
+// **CHANGED**: Get status from the nested score value
+function getScoreStatus(student) {
+  if (!student || !student.scores) return 'pending';
+  let scoreData;
+  if (selectedScoreType.value === 'special') {
+    scoreData = student.scores.special;
+  } else {
+    scoreData = student.scores[selectedScoreType.value]?.[selectedNumber.value];
+  }
+  
+  // A score is considered completed if the 'score' property is a number.
+  return (scoreData && typeof scoreData.score === 'number') ? 'completed' : 'pending';
 }
 
 function clearSearch() {
@@ -206,19 +286,6 @@ function clearFilters() {
   searchQuery.value = ''
   selectedMajorFilter.value = 'สาขาทั้งหมด'
   selectedSectionFilter.value = 'กลุ่มเรียนทั้งหมด'
-}
-
-
-function getScoreStatus(student) {
-  if (!student || !student.scores) return 'pending';
-  let score;
-  if (selectedScoreType.value === 'special') {
-    score = student.scores.special;
-    return (score !== undefined && score !== null) ? 'completed' : 'pending';
-  } else {
-    score = student.scores[selectedScoreType.value]?.[selectedNumber.value];
-    return (score !== undefined && score !== null && String(score).trim() !== '') ? 'completed' : 'pending';
-  }
 }
 
 async function logout() {
@@ -240,8 +307,7 @@ async function logout() {
 
 <template>
   <div class="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 text-gray-800">
-    <!-- Header -->
-   <header class="bg-white shadow-lg">
+      <header class="bg-white shadow-lg">
       <!-- ส่วน Header บน: Logo และ User Info/Logout -->
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div
@@ -265,7 +331,7 @@ async function logout() {
         </div>
       </div>
 
-      <!-- ส่วน Navbar ล่าง: เมนูต่างๆ -->
+           <!-- ส่วน Navbar ล่าง: เมนูต่างๆ -->
       <nav class="bg-white overflow-x-auto">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div class="flex items-center justify-start space-x-2 sm:space-x-4 py-3 min-w-max sm:min-w-0">
@@ -290,9 +356,9 @@ async function logout() {
 
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div> <!-- Removed v-if="activeTab === 'scores'" as this page is dedicated to scores -->
-        <!-- Score Type Selector -->
-        <div class="mb-6 bg-white rounded-lg shadow p-4">
+      <div>
+        <!-- ... ส่วน Selector และ Filters ไม่มีการเปลี่ยนแปลง ... -->
+         <div class="mb-6 bg-white rounded-lg shadow p-4">
           <h3 class="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">เลือกประเภทคะแนน</h3>
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <button @click="selectedScoreType = 'lab'; selectedNumber = 1;" :class="[
@@ -303,7 +369,7 @@ async function logout() {
             ]">
               <div class="text-center">
                 <div class="text-sm sm:text-lg font-semibold">Lab</div>
-                <div class="text-xs sm:text-sm text-gray-500">1-14</div>
+                <div class="text-xs sm:text-sm text-gray-500">1-15</div>
               </div>
             </button>
             <button @click="selectedScoreType = 'assignment'; selectedNumber = 1;" :class="[
@@ -314,7 +380,7 @@ async function logout() {
             ]">
               <div class="text-center">
                 <div class="text-sm sm:text-lg font-semibold">Assignment</div>
-                <div class="text-xs sm:text-sm text-gray-500">1-12</div>
+                <div class="text-xs sm:text-sm text-gray-500">1-13</div>
               </div>
             </button>
             <button @click="selectedScoreType = 'special'" :class="[
@@ -330,14 +396,12 @@ async function logout() {
             </button>
           </div>
         </div>
-
-        <!-- Number Selector (for Lab/Assignment) -->
-        <div v-if="selectedScoreType !== 'special'" class="mb-6 bg-white rounded-lg shadow p-4">
+         <div v-if="selectedScoreType !== 'special'" class="mb-6 bg-white rounded-lg shadow p-4">
           <h3 class="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">
             เลือก {{ selectedScoreType === 'lab' ? 'Lab' : 'Assignment' }} ที่
           </h3>
           <div class="grid grid-cols-4 xs:grid-cols-6 sm:grid-cols-7 md:grid-cols-10 lg:grid-cols-14 gap-1.5 sm:gap-2">
-            <button v-for="n in (selectedScoreType === 'lab' ? 14 : 12)" :key="`${selectedScoreType}-${n}`"
+            <button v-for="n in (selectedScoreType === 'lab' ? 15 : 13)" :key="`${selectedScoreType}-${n}`"
               @click="selectedNumber = n" :class="[
                 'p-1.5 sm:p-2 rounded-md text-xs sm:text-sm font-medium transition-colors duration-200 focus:outline-none focus:ring-2',
                 selectedNumber === n
@@ -350,9 +414,7 @@ async function logout() {
             </button>
           </div>
         </div>
-
-        <!-- Filters: Search, Major, Section -->
-        <div class="mb-6 bg-white rounded-lg shadow p-4">
+         <div class="mb-6 bg-white rounded-lg shadow p-4">
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <!-- Search -->
             <div class="md:col-span-1">
@@ -420,19 +482,10 @@ async function logout() {
           </div>
 
           <div v-if="isLoading && !students.length" class="p-6 sm:p-8 text-center">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mb-2"></div>
-            <p class="text-gray-600">กำลังโหลดข้อมูล...</p>
+            <!-- ... -->
           </div>
           <div v-else-if="!filteredStudents.length" class="p-6 sm:p-8 text-center text-gray-600">
-            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-              aria-hidden="true">
-              <path vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-            </svg>
-            <p class="mt-2 text-sm sm:text-base">
-              {{ searchQuery || selectedMajorFilter !== 'สาขาทั้งหมด' || selectedSectionFilter !== 'กลุ่มเรียนทั้งหมด' ?
-                'ไม่พบข้อมูลนักศึกษาที่ตรงตามเงื่อนไข' : 'ยังไม่มีข้อมูลนักศึกษาในระบบ' }}
-            </p>
+            <!-- ... -->
           </div>
 
           <div v-else class="overflow-x-auto">
@@ -451,11 +504,16 @@ async function logout() {
                   <th
                     class="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">
                     กลุ่ม</th>
-                  <th class="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  
+                  <!-- **CHANGED**: Hide status header for special scores -->
+                  <th v-if="selectedScoreType !== 'special'"
+                    class="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     สถานะ</th>
-                  <th
-                    class="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-32 sm:w-40">
-                    {{ selectedScoreType === 'special' ? 'คะแนนพิเศษ' : `คะแนน` }}
+                  
+                  <!-- **CHANGED**: Dynamic header text and width -->
+                  <th class="px-3 sm:px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    :class="selectedScoreType === 'special' ? 'w-40 sm:w-48' : 'w-48 sm:w-80'">
+                    {{ selectedScoreType === 'special' ? 'คะแนนพิเศษ' : 'คะแนน / หมายเหตุ' }}
                   </th>
                 </tr>
               </thead>
@@ -471,36 +529,61 @@ async function logout() {
                   <td
                     class="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center hidden sm:table-cell">
                     {{ student.section || '-' }}</td>
-                  <td class="px-3 sm:px-6 py-4 whitespace-nowrap text-center">
+
+                  <!-- **CHANGED**: Hide status column data for special scores -->
+                  <td v-if="selectedScoreType !== 'special'" class="px-3 sm:px-6 py-4 whitespace-nowrap text-center">
                     <span v-if="getScoreStatus(student) === 'completed'"
                       class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700"
                       title="บันทึกคะแนนแล้ว">
-                      บันทึกแล้ว
+                      ให้คะแนนแล้ว
                     </span>
                     <span v-else
                       class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700"
                       title="รอการให้คะแนน">
-                      ยังไม่ให้คะแนน
+                      ยังไม่ให้
                     </span>
                   </td>
-                  <td class="px-1 sm:px-3 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
-                    <div class="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5">
+
+                  <!-- **CHANGED**: Use v-if/v-else for completely different layouts -->
+                  <td class="px-1 sm:px-3 py-4 whitespace-nowrap text-sm text-gray-900">
+                    
+                    <!-- Layout for Lab and Assignment (Score + Note) -->
+                    <div v-if="selectedScoreType !== 'special'" class="flex flex-col sm:flex-row items-stretch justify-center gap-1.5">
                       <input type="number" :value="getScoreForInput(student)"
                         @change="handleScoreChange(student, $event.target.value)"
-                        @blur="handleScoreChange(student, $event.target.value)" step="0.1" min="0"
-                        :max="selectedScoreType === 'special' ? 100 : (selectedScoreType === 'lab' ? 10 : 20)"
+                        @blur="handleScoreChange(student, $event.target.value)"
+                        step="0.1" min="0" :max="selectedScoreType === 'lab' ? 10 : 20"
                         class="w-full sm:w-20 p-1.5 border border-gray-300 rounded-md text-sm text-center focus:ring-2 focus:ring-green-500 focus:border-transparent appearance-none [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        placeholder="-"
-                        :aria-label="`คะแนน ${selectedScoreType} ${selectedScoreType !== 'special' ? selectedNumber : ''} ของ ${student.name}`" />
-                      <button v-if="selectedScoreType === 'special'" @click="incrementSpecialScore(student)"
-                        class="w-full sm:w-auto p-1.5 bg-purple-500 text-white rounded-md hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400 transition-colors text-xs flex items-center justify-center"
+                        placeholder="คะแนน"
+                        :aria-label="`คะแนน ${selectedScoreType} ${selectedNumber} ของ ${student.name}`" />
+
+                      <input type="text" :value="getNoteForInput(student)"
+                        @blur="handleNoteChange(student, $event.target.value)"
+                        class="w-full sm:flex-grow p-1.5 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                        placeholder="หมายเหตุ (ถ้ามี)"
+                        :aria-label="`หมายเหตุคะแนน ${selectedScoreType} ${selectedNumber} ของ ${student.name}`" />
+                    </div>
+
+                    <!-- Layout for Special Score (Score + Increment Button) -->
+                    <div v-else class="flex items-center justify-center gap-1.5">
+                       <input type="number" :value="getScoreForInput(student)"
+                        @change="handleScoreChange(student, $event.target.value)"
+                        @blur="handleScoreChange(student, $event.target.value)" 
+                        step="0.1" min="0" max="100"
+                        class="w-20 p-1.5 border border-gray-300 rounded-md text-sm text-center focus:ring-2 focus:ring-purple-500 focus:border-transparent appearance-none [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        placeholder="คะแนน"
+                        :aria-label="`คะแนนพิเศษของ ${student.name}`" />
+                        
+                      <button @click="incrementSpecialScore(student)"
+                        class="p-1.5 bg-purple-500 text-white rounded-md hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-400 transition-colors flex items-center justify-center"
                         title="เพิ่มคะแนนพิเศษ 1 คะแนน" aria-label="เพิ่มคะแนนพิเศษ 1 คะแนน">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:mr-1" fill="none" viewBox="0 0 24 24"
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24"
                           stroke="currentColor" stroke-width="2">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                       </button>
                     </div>
+
                   </td>
                 </tr>
               </tbody>
@@ -517,8 +600,8 @@ async function logout() {
   </div>
 </template>
 
-
 <style scoped lang="postcss">
+/* ... Style ไม่มีการเปลี่ยนแปลง ... */
 .menu-item {
   @apply px-3 py-2 rounded-md text-sm font-medium text-gray-700 relative;
   @apply hover:text-green-700 transition-colors duration-200;
