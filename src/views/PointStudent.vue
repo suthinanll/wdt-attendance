@@ -508,8 +508,10 @@ async function logout() {
           </div>
         </div>
       </div>
+      <br>
       <footer class="text-center py-6 text-xs text-gray-500">
-        &copy; {{ new Date().getFullYear() }} CP352201 & SC362201 Web Design Technologies. All rights reserved.
+        &copy; 2025 CP352201 & SC362201 Web Design Technologies. <br>
+        Developed by suthinanll
       </footer>
     </main>
   </div>

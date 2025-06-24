@@ -337,7 +337,7 @@ function listenToAttendance() {
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div class="flex items-center justify-start space-x-2 sm:space-x-4 py-3 min-w-max sm:min-w-0">
             <router-link to="/attendance" class="menu-item whitespace-nowrap"
-              active-class="active-menu-item bg-gray-100">
+              active-class="active-menu-item">
               เช็คชื่อ
             </router-link>
             <router-link to="/students" class="menu-item whitespace-nowrap" active-class="active-menu-item">
@@ -453,13 +453,19 @@ function listenToAttendance() {
           <p class="text-xs sm:text-sm text-gray-600 mt-4">แชร์ QR Code นี้ให้นักเรียนสแกนเพื่อเช็คชื่อ</p>
           <div class="mt-4 p-3 sm:p-4 bg-blue-50 rounded-lg">
             <p class="text-xs sm:text-sm text-blue-600 font-medium mb-2">ลิงก์สำหรับเช็คชื่อ:</p>
-            <a :href="`https://wed-ds2025.vercel.app/attendance/checkclass/${sessionId}`" target="_blank"
+            <a :href="`https://web-ds2025.vercel.app/attendance/checkclass/${sessionId}`" target="_blank"
               class="text-xs sm:text-sm text-blue-600 underline hover:text-blue-800 break-all block">
-              https://wed-ds2025.vercel.app/attendance/checkclass/{{ sessionId }}
+              https://web-ds2025.vercel.app/attendance/checkclass/{{ sessionId }}
             </a>
           </div>
         </div>
       </div>
+      <br>
+      <footer class="text-center py-6 text-xs text-gray-500">
+        &copy; 2025 CP352201 & SC362201 Web Design Technologies. <br>
+        Developed by suthinanll
+      </footer>
+      
     </main>
 
     <!-- Floating Button -->
@@ -571,6 +577,8 @@ function listenToAttendance() {
       </div>
     </div>
   </div>
+
+  
 </template>
 
 <script>
