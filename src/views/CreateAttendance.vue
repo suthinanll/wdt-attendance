@@ -39,6 +39,7 @@ const attendeesList = ref([])
 let unsubscribe = null
 
 const sidebarVisible = ref(false)
+const qrCodeSize = ref(300)
 
 // ... (ฟังก์ชันอื่นๆ formatTime, formatTimestamp, toggleSidebar, closeSidebar, checkActiveSession, startCountdown, stopSession คงเดิม) ...
 function formatTime(seconds) {
