@@ -448,8 +448,9 @@ function listenToAttendance() {
         <div
           class="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-dashed border-blue-300 p-4 sm:p-6 lg:p-8 rounded-2xl text-center">
           <p class="text-gray-700 mb-4 font-semibold text-sm sm:text-base">QR Code สำหรับการเช็คชื่อ</p>
+          
           <div class="bg-white p-3 sm:p-4 rounded-xl inline-block shadow-lg">
-            <QRCodeVue :value="`https://wed-ds2025.vercel.app/attendance/checkclass/${sessionId}`" :size="qrCodeSize" />
+            <QRCodeVue :value="`https://web-ds2025.vercel.app/attendance/checkclass/${sessionId}`" :size="qrCodeSize" />
           </div>
           <p class="text-xs sm:text-sm text-gray-600 mt-4">แชร์ QR Code นี้ให้นักเรียนสแกนเพื่อเช็คชื่อ</p>
           <div class="mt-4 p-3 sm:p-4 bg-blue-50 rounded-lg">
