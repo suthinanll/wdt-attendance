@@ -388,7 +388,7 @@ function listenToAttendance() {
               class="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">สัปดาห์ที่</label>
             <input id="weekNumber" v-model="weekNumber" type="text"
               class="w-full border-2 border-gray-200 rounded-xl px-3 sm:px-4 py-2 sm:py-3 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all text-sm sm:text-base"
-              placeholder="เช่น 1, 2," />
+              placeholder="เช่น 1 , 2" />
           </div>
           <div>
             <label for="majorName" class="block text-gray-700 font-semibold mb-2 text-sm sm:text-base">สาขาวิชา</label>
