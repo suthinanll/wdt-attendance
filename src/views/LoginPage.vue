@@ -1,10 +1,10 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-blue-50 p-4">
+  <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-300 to-green-200 p-4">
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
       <!-- Header -->
       <div class="text-center">
         <br><br>
-        <h2 class="text-2xl font-medium text-gray-800">เข้าสู่ระบบ</h2>z
+        <h2 class="text-2xl font-medium text-gray-800">เข้าสู่ระบบ</h2>
       </div>
       
       <!-- Form -->
